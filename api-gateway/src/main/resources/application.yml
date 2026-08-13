@@ -1,0 +1,84 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/v1/auth/**, /v3/api-docs/auth-service
+        - id: organization-service
+          uri: lb://organization-service
+          predicates:
+            - Path=/api/v1/organizations/**, /api/v1/sites/**, /api/v1/classifications/**, /api/v1/organization-relationships/**, /api/v1/clients/**, /api/v1/client-sites/**, /api/v1/regions/**, /v3/api-docs/organization-service
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/v1/persons/**, /api/v1/roles/**, /api/v1/permissions/**, /api/v1/groups/**, /api/v1/drivers/**, /api/v1/custom-roles/**, /v3/api-docs/user-service
+        - id: audit-service
+          uri: lb://audit-service
+          predicates:
+            - Path=/api/v1/audit/**, /api/v1/settings/**, /v3/api-docs/audit-service
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/v1/notifications/**, /api/v1/notification-templates/**, /api/v1/anomalies/**, /api/v1/reports/**, /v3/api-docs/notification-service
+        - id: tour-service
+          uri: lb://tour-service
+          predicates:
+            - Path=/api/v1/tours/**, /api/v1/checkpoints/**, /api/v1/pickup-requests/**, /api/v1/transporter-contracts/**, /v3/api-docs/tour-service
+        - id: cylinder-service
+          uri: lb://cylinder-service
+          predicates:
+            - Path=/api/v1/cylinders/**, /api/v1/rfid-tags/**, /api/v1/cylinder-movements/**, /api/v1/scan-events/**, /api/v1/inventory-snapshots/**, /v3/api-docs/cylinder-service
+        - id: fleet-device-service
+          uri: lb://fleet-device-service
+          predicates:
+            - Path=/api/v1/vehicles/**, /api/v1/devices/**, /api/v1/vehicle-positions/**, /api/v1/geofence-events/**, /v3/api-docs/fleet-device-service
+        - id: subsidy-service
+          uri: lb://subsidy-service
+          predicates:
+            - Path=/api/v1/declarations/**, /api/v1/reconciliations/**, /api/v1/redressements/**, /api/v1/risk-scores/**, /v3/api-docs/subsidy-service
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    urls:
+      - name: 🔐 Auth Service (8081)
+        url: /v3/api-docs/auth-service
+      - name: 🏢 Organization Service (8082)
+        url: /v3/api-docs/organization-service
+      - name: 👤 User & Driver Service (8083)
+        url: /v3/api-docs/user-service
+      - name: 📋 Audit Service (8084)
+        url: /v3/api-docs/audit-service
+      - name: 🔔 Notification & Anomaly Service (8085)
+        url: /v3/api-docs/notification-service
+      - name: 🚚 Tour & Pickup Service (8086)
+        url: /v3/api-docs/tour-service
+      - name: 🏷️ Cylinder & RFID Service (8087)
+        url: /v3/api-docs/cylinder-service
+      - name: 📡 Fleet & IoT Device Service (8088)
+        url: /v3/api-docs/fleet-device-service
+      - name: 💰 Subsidy & Reconciliation Service (8089)
+        url: /v3/api-docs/subsidy-service
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+gpl:
+  jwt:
+    secret: ${GPL_JWT_SECRET:gpl-rfid-livraisons-super-secret-key-change-in-production-2024}

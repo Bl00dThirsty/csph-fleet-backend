@@ -1,0 +1,304 @@
+version: '3.9'
+
+services:
+  # ════════════════════════════════════════════════════════════
+  # DATABASES
+  # ════════════════════════════════════════════════════════════
+
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: gpl-postgres-auth
+    environment:
+      POSTGRES_DB: gpl_auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata-auth:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gpl-network
+
+  postgres-organization:
+    image: postgres:16-alpine
+    container_name: gpl-postgres-org
+    environment:
+      POSTGRES_DB: gpl_organization_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata-org:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gpl-network
+
+  postgres-user:
+    image: postgres:16-alpine
+    container_name: gpl-postgres-user
+    environment:
+      POSTGRES_DB: gpl_user_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata-user:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gpl-network
+
+  postgres-audit:
+    image: postgres:16-alpine
+    container_name: gpl-postgres-audit
+    environment:
+      POSTGRES_DB: gpl_audit_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - pgdata-audit:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gpl-network
+
+  postgres-notification:
+    image: postgres:16-alpine
+    container_name: gpl-postgres-notif
+    environment:
+      POSTGRES_DB: gpl_notification_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5437:5432"
+    volumes:
+      - pgdata-notif:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gpl-network
+
+  postgres-tour:
+    image: postgres:16-alpine
+    container_name: gpl-postgres-tour
+    environment:
+      POSTGRES_DB: gpl_tour_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5438:5432"
+    volumes:
+      - pgdata-tour:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gpl-network
+
+  # ════════════════════════════════════════════════════════════
+  # INFRASTRUCTURE SERVICES
+  # ════════════════════════════════════════════════════════════
+
+  discovery-server:
+    build:
+      context: .
+      dockerfile: ./discovery-server/Dockerfile
+    container_name: gpl-discovery-server
+    ports:
+      - "8761:8761"
+    networks:
+      - gpl-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8761/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: ./api-gateway/Dockerfile
+    container_name: gpl-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - GPL_JWT_SECRET=${GPL_JWT_SECRET:-gpl-rfid-livraisons-super-secret-key-change-in-production-2024}
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - gpl-network
+
+  # ════════════════════════════════════════════════════════════
+  # MICROSERVICES
+  # ════════════════════════════════════════════════════════════
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: ./auth-service/Dockerfile
+    container_name: gpl-auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-auth:5432/gpl_auth_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - GPL_JWT_SECRET=${GPL_JWT_SECRET:-gpl-rfid-livraisons-super-secret-key-change-in-production-2024}
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - gpl-network
+
+  organization-service:
+    build:
+      context: .
+      dockerfile: ./organization-service/Dockerfile
+    container_name: gpl-organization-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-organization:5432/gpl_organization_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      postgres-organization:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - gpl-network
+
+  user-service:
+    build:
+      context: .
+      dockerfile: ./user-service/Dockerfile
+    container_name: gpl-user-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-user:5432/gpl_user_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - gpl-network
+
+  audit-service:
+    build:
+      context: .
+      dockerfile: ./audit-service/Dockerfile
+    container_name: gpl-audit-service
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-audit:5432/gpl_audit_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      postgres-audit:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - gpl-network
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: ./notification-service/Dockerfile
+    container_name: gpl-notification-service
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-notification:5432/gpl_notification_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - SPRING_MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
+      - SPRING_MAIL_PORT=${MAIL_PORT:-587}
+      - SPRING_MAIL_USERNAME=${MAIL_USERNAME:-noreply@gpl-rfid.cm}
+      - SPRING_MAIL_PASSWORD=${MAIL_PASSWORD:-changeme}
+    depends_on:
+      postgres-notification:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - gpl-network
+
+  tour-service:
+    build:
+      context: .
+      dockerfile: ./tour-service/Dockerfile
+    container_name: gpl-tour-service
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-tour:5432/gpl_tour_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - DB_HOST=postgres-tour
+    depends_on:
+      postgres-tour:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - gpl-network
+
+# ════════════════════════════════════════════════════════════
+# VOLUMES & NETWORKS
+# ════════════════════════════════════════════════════════════
+
+volumes:
+  pgdata-auth:
+  pgdata-org:
+  pgdata-user:
+  pgdata-audit:
+  pgdata-notif:
+  pgdata-tour:
+
+networks:
+  gpl-network:
+    driver: bridge
