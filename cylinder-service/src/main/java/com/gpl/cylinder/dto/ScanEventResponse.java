@@ -1,18 +1,16 @@
-package com.gpl.cylinder.model;
+package com.gpl.cylinder.dto;
 
-import com.gpl.common.model.BaseEntity;
-import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import java.time.Instant;
 
-@Entity
-@Table(name = "scan_events")
 @Getter
 @Setter
 @NoArgsConstructor
-public class ScanEvent extends BaseEntity {
+@AllArgsConstructor
+@Builder
+public class ScanEventResponse {
+    private String id;
+    private Long rowStamp;
     private String checkpointId;
     private String livreurPersonId;
     private String rfidTagId;
@@ -24,4 +22,8 @@ public class ScanEvent extends BaseEntity {
     private String photoUrl;
     private String pdaSyncId;
     private String conflictStatus;
+    private Instant createdAt;
+    private String createdBy;
+    private Instant changedate;
+    private String changeby;
 }

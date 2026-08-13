@@ -1,41 +1,43 @@
 package com.gpl.subsidy.model;
 
-import com.gpl.common.model.BaseEntity;
+import com.gpl.common.model.AuditableEntity;
 import jakarta.persistence.*;
+import lombok.*;
 import java.time.Instant;
 
 @Entity
 @Table(name = "reconciliations")
-public class Reconciliation extends BaseEntity {
-    private String declarationId;
-    private double trackedVolume;
-    private Integer trackedBottlesOut;
-    private Integer trackedBottlesIn;
-    private double volumeGap;
-    private double subsidyImpact;
-    private String status;
-    private String verifiedByPersonId;
-    private Instant verifiedAt;
-    private String notes;
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Reconciliation extends AuditableEntity {
 
-    public String getDeclarationId() { return declarationId; }
-    public void setDeclarationId(String declarationId) { this.declarationId = declarationId; }
-    public double getTrackedVolume() { return trackedVolume; }
-    public void setTrackedVolume(double trackedVolume) { this.trackedVolume = trackedVolume; }
-    public Integer getTrackedBottlesOut() { return trackedBottlesOut; }
-    public void setTrackedBottlesOut(Integer trackedBottlesOut) { this.trackedBottlesOut = trackedBottlesOut; }
-    public Integer getTrackedBottlesIn() { return trackedBottlesIn; }
-    public void setTrackedBottlesIn(Integer trackedBottlesIn) { this.trackedBottlesIn = trackedBottlesIn; }
-    public double getVolumeGap() { return volumeGap; }
-    public void setVolumeGap(double volumeGap) { this.volumeGap = volumeGap; }
-    public double getSubsidyImpact() { return subsidyImpact; }
-    public void setSubsidyImpact(double subsidyImpact) { this.subsidyImpact = subsidyImpact; }
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
-    public String getVerifiedByPersonId() { return verifiedByPersonId; }
-    public void setVerifiedByPersonId(String verifiedByPersonId) { this.verifiedByPersonId = verifiedByPersonId; }
-    public Instant getVerifiedAt() { return verifiedAt; }
-    public void setVerifiedAt(Instant verifiedAt) { this.verifiedAt = verifiedAt; }
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
+    @Column(name = "declaration_id", nullable = false)
+    private String declarationId;
+
+    @Column(name = "tracked_volume")
+    private double trackedVolume;
+
+    @Column(name = "tracked_bottles_out")
+    private Integer trackedBottlesOut;
+
+    @Column(name = "tracked_bottles_in")
+    private Integer trackedBottlesIn;
+
+    @Column(name = "volume_gap")
+    private double volumeGap;
+
+    @Column(name = "subsidy_impact")
+    private double subsidyImpact;
+
+    @Column(name = "verified_by")
+    private String verifiedByPersonId;
+
+    @Column(name = "verified_at")
+    private Instant verifiedAt;
+
+    @Column(name = "notes", length = 1000)
+    private String notes;
 }

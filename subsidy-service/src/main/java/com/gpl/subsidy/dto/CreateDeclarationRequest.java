@@ -1,38 +1,22 @@
-package com.gpl.subsidy.model;
+package com.gpl.subsidy.dto;
 
-import com.gpl.common.model.AuditableEntity;
-import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import java.time.Instant;
 
-@Entity
-@Table(name = "declarations")
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Declaration extends AuditableEntity {
-
-    @Column(name = "marketeur_org_id")
+public class CreateDeclarationRequest {
     private String marketerOrganizationId;
-
-    @Column(name = "declaring_org_id")
     private String declaringOrganizationId;
-
-    @Column(name = "site_id")
     private String siteId;
-
-    @Column(name = "period_start")
+    @NotNull(message = "periodStart is required")
     private Instant periodStart;
-
-    @Column(name = "period_end")
+    @NotNull(message = "periodEnd is required")
     private Instant periodEnd;
-
-    @Column(name = "declared_volume")
     private double declaredVolume;
-
-    @Column(name = "submitted_by")
     private String submittedByPersonId;
 
     public String getEffectiveOrganizationId() {

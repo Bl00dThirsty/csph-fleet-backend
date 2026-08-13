@@ -1,17 +1,15 @@
-package com.gpl.cylinder.model;
+package com.gpl.cylinder.dto;
 
-import com.gpl.common.model.AuditableEntity;
-import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
 
-@Entity
-@Table(name = "cylinders")
 @Getter
 @Setter
 @NoArgsConstructor
-public class Cylinder extends AuditableEntity {
+@AllArgsConstructor
+@Builder
+public class CreateCylinderRequest {
+    @NotBlank(message = "Le numéro de série est obligatoire")
     private String serialNumber;
     private String barcode;
     private String cylinderTypeId;
@@ -21,4 +19,6 @@ public class Cylinder extends AuditableEntity {
     private String fillStatus;
     private String brand;
     private Double capacityKg;
+    private String status;
+    private String statusDescription;
 }

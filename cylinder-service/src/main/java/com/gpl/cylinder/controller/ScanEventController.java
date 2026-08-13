@@ -1,0 +1,56 @@
+package com.gpl.cylinder.controller;
+
+import com.gpl.common.dto.ApiResponse;
+import com.gpl.common.dto.PageResponse;
+import com.gpl.common.security.RequiresPermission;
+import com.gpl.cylinder.dto.CreateScanEventRequest;
+import com.gpl.cylinder.dto.ScanEventResponse;
+import com.gpl.cylinder.service.ScanEventService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/scans")
+@RequiredArgsConstructor
+public class ScanEventController {
+
+    private final ScanEventService scanEventService;
+
+    @RequiresPermission("scans.read")
+    @GetMapping
+    public PageResponse<ScanEventResponse> listScanEvents(
+            @RequestParam(required = false) String checkpointId,
+            @RequestParam(required = false) String livreurPersonId,
+            @RequestParam(required = false) String rfidTagId,
+            @RequestParam(required = false) String direction,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("timestamp").descending());
+        return scanEventService.listScanEvents(checkpointId, livreurPersonId, rfidTagId, direction, pageable);
+    }
+
+    @RequiresPermission("scans.read")
+    @GetMapping("/{id}")
+    public ApiResponse<ScanEventResponse> getScanEvent(@PathVariable String id) {
+        return ApiResponse.success(scanEventService.getScanEvent(id));
+    }
+
+    @RequiresPermission("scans.create")
+    @PostMapping
+    public ApiResponse<ScanEventResponse> createScanEvent(
+            @Valid @RequestBody CreateScanEventRequest request,
+            @RequestHeader(value = "X-User-PersonId", required = false) String userId) {
+        return ApiResponse.success(scanEventService.createScanEvent(request, userId));
+    }
+
+    @RequiresPermission("scans.delete")
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deleteScanEvent(@PathVariable String id) {
+        scanEventService.deleteScanEvent(id);
+        return ApiResponse.success(null);
+    }
+}

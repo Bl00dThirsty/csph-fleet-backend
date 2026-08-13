@@ -1,20 +1,18 @@
-package com.gpl.cylinder.model;
+package com.gpl.cylinder.dto;
 
-import com.gpl.common.model.BaseEntity;
-import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
 import java.time.Instant;
 
-@Entity
-@Table(name = "scan_events")
 @Getter
 @Setter
 @NoArgsConstructor
-public class ScanEvent extends BaseEntity {
+@AllArgsConstructor
+@Builder
+public class CreateScanEventRequest {
     private String checkpointId;
     private String livreurPersonId;
+    @NotBlank(message = "L'ID du tag RFID est obligatoire")
     private String rfidTagId;
     private String direction;
     private Double latitude;
