@@ -21,7 +21,7 @@ public class CylinderController {
 
     private final CylinderService cylinderService;
 
-    @RequiresPermission("cylinders.read")
+    @RequiresPermission("CYLINDER_VIEW")
     @GetMapping
     public PageResponse<CylinderResponse> listCylinders(
             @RequestParam(required = false) String ownerOrganizationId,
@@ -35,13 +35,13 @@ public class CylinderController {
         return cylinderService.listCylinders(ownerOrganizationId, currentSiteId, brand, capacityKg, status, pageable);
     }
 
-    @RequiresPermission("cylinders.read")
+    @RequiresPermission("CYLINDER_VIEW")
     @GetMapping("/{id}")
     public ApiResponse<CylinderResponse> getCylinder(@PathVariable String id) {
         return ApiResponse.success(cylinderService.getCylinder(id));
     }
 
-    @RequiresPermission("cylinders.create")
+    @RequiresPermission("CYLINDER_CREATE")
     @PostMapping
     public ApiResponse<CylinderResponse> createCylinder(
             @Valid @RequestBody CreateCylinderRequest request,
@@ -49,7 +49,7 @@ public class CylinderController {
         return ApiResponse.success(cylinderService.createCylinder(request, userId));
     }
 
-    @RequiresPermission("cylinders.update")
+    @RequiresPermission("CYLINDER_UPDATE")
     @PutMapping("/{id}")
     public ApiResponse<CylinderResponse> updateCylinder(
             @PathVariable String id,
@@ -58,7 +58,16 @@ public class CylinderController {
         return ApiResponse.success(cylinderService.updateCylinder(id, request, userId));
     }
 
-    @RequiresPermission("cylinders.delete")
+    @RequiresPermission("CYLINDER_TRANSFER")
+    @PostMapping("/{id}/transfer")
+    public ApiResponse<CylinderResponse> transferCylinder(
+            @PathVariable String id,
+            @Valid @RequestBody com.gpl.cylinder.dto.TransferCylinderRequest request,
+            @RequestHeader(value = "X-User-PersonId", required = false) String userId) {
+        return ApiResponse.success(cylinderService.transferCylinder(id, request, userId));
+    }
+
+    @RequiresPermission("CYLINDER_DELETE")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteCylinder(@PathVariable String id) {
         cylinderService.deleteCylinder(id);

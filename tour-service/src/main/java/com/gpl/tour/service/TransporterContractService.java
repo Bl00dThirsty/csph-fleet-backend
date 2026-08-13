@@ -14,5 +14,6 @@ public interface TransporterContractService {
     TransporterContractResponseDto getContract(String id);
     PageResponse<TransporterContractResponseDto> listContracts(String marketerOrganizationId, String transporterOrganizationId, Pageable pageable);
     List<TransporterContractResponseDto> getContractsByMarketer(String marketerOrganizationId);
+    TransporterContractResponseDto terminateContract(String id, String terminatedBy);
     void deleteContract(String id);
 }

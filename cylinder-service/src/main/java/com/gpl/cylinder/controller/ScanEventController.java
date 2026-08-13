@@ -20,7 +20,7 @@ public class ScanEventController {
 
     private final ScanEventService scanEventService;
 
-    @RequiresPermission("scans.read")
+    @RequiresPermission("SCAN_VIEW")
     @GetMapping
     public PageResponse<ScanEventResponse> listScanEvents(
             @RequestParam(required = false) String checkpointId,
@@ -33,13 +33,13 @@ public class ScanEventController {
         return scanEventService.listScanEvents(checkpointId, livreurPersonId, rfidTagId, direction, pageable);
     }
 
-    @RequiresPermission("scans.read")
+    @RequiresPermission("SCAN_VIEW")
     @GetMapping("/{id}")
     public ApiResponse<ScanEventResponse> getScanEvent(@PathVariable String id) {
         return ApiResponse.success(scanEventService.getScanEvent(id));
     }
 
-    @RequiresPermission("scans.create")
+    @RequiresPermission("SCAN_CREATE")
     @PostMapping
     public ApiResponse<ScanEventResponse> createScanEvent(
             @Valid @RequestBody CreateScanEventRequest request,
@@ -47,7 +47,16 @@ public class ScanEventController {
         return ApiResponse.success(scanEventService.createScanEvent(request, userId));
     }
 
-    @RequiresPermission("scans.delete")
+    @RequiresPermission("SCAN_RESOLVE_CONFLICT")
+    @PostMapping("/{id}/resolve-conflict")
+    public ApiResponse<ScanEventResponse> resolveConflict(
+            @PathVariable String id,
+            @Valid @RequestBody com.gpl.cylinder.dto.ResolveScanConflictRequest request,
+            @RequestHeader(value = "X-User-PersonId", required = false) String userId) {
+        return ApiResponse.success(scanEventService.resolveConflict(id, request, userId));
+    }
+
+    @RequiresPermission("SCAN_DELETE")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteScanEvent(@PathVariable String id) {
         scanEventService.deleteScanEvent(id);

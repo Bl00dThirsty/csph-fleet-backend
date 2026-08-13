@@ -17,5 +17,6 @@ public interface CylinderService {
             Double capacityKg,
             String status,
             Pageable pageable);
+    CylinderResponse transferCylinder(String id, com.gpl.cylinder.dto.TransferCylinderRequest request, String transferredBy);
     void deleteCylinder(String id);
 }

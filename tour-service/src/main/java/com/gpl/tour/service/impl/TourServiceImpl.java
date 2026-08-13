@@ -258,6 +258,145 @@ public class TourServiceImpl implements TourService {
         log.debug("Checkpoint deleted successfully: {}", checkpointId);
     }
 
+    /* ── Lifecycle Operation Workflows ────────────────────────────────────── */
+
+    @Override
+    public TourResponseDto startTour(String id, String startedBy) {
+        log.info("Starting Tour ID: {} by user: {}", id, startedBy);
+        Tour tour = tourRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
+
+        if ("COMPLETED".equals(tour.getStatus()) || "CANCELLED".equals(tour.getStatus()) || "CLOSED".equals(tour.getStatus())) {
+            throw new BusinessException("Impossible de démarrer une tournée qui est déjà terminée ou annulée. Statut actuel: " + tour.getStatus());
+        }
+
+        tour.setStatus("STARTED");
+        tour.setStatusDescription("Tournée démarrée et en cours d'exécution");
+        tour.setStatusDate(java.time.Instant.now());
+        tour.setStartedAt(java.time.Instant.now());
+        tour.setChangeby(startedBy != null ? startedBy : "SYSTEM");
+
+        Tour saved = tourRepository.save(tour);
+        return mapToDto(saved);
+    }
+
+    @Override
+    public TourResponseDto closeTour(String id, Double loadedQuantity, Double deliveredQuantity, String closedBy) {
+        log.info("Closing Tour ID: {} by user: {}", id, closedBy);
+        Tour tour = tourRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
+
+        if ("CLOSED".equals(tour.getStatus()) || "CANCELLED".equals(tour.getStatus())) {
+            throw new BusinessException("La tournée ID " + id + " est déjà clôturée ou annulée.");
+        }
+
+        tour.setStatus("CLOSED");
+        tour.setStatusDescription("Tournée achevée et clôturée avec succès");
+        tour.setStatusDate(java.time.Instant.now());
+        tour.setClosedAt(java.time.Instant.now());
+
+        if (loadedQuantity != null) {
+            tour.setLoadedQuantity(loadedQuantity);
+        }
+        if (deliveredQuantity != null) {
+            tour.setDeliveredQuantity(deliveredQuantity);
+        }
+        tour.setChangeby(closedBy != null ? closedBy : "SYSTEM");
+
+        Tour saved = tourRepository.save(tour);
+        return mapToDto(saved);
+    }
+
+    @Override
+    public TourResponseDto cancelTour(String id, String reason, String cancelledBy) {
+        log.info("Cancelling Tour ID: {} by user: {}, reason: {}", id, cancelledBy, reason);
+        Tour tour = tourRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
+
+        if ("CLOSED".equals(tour.getStatus()) || "COMPLETED".equals(tour.getStatus())) {
+            throw new BusinessException("Impossible d'annuler une tournée déjà clôturée.");
+        }
+
+        tour.setStatus("CANCELLED");
+        tour.setStatusDescription(reason != null && !reason.isBlank() ? "Annulée: " + reason : "Tournée annulée");
+        tour.setStatusDate(java.time.Instant.now());
+        tour.setChangeby(cancelledBy != null ? cancelledBy : "SYSTEM");
+
+        Tour saved = tourRepository.save(tour);
+        return mapToDto(saved);
+    }
+
+    @Override
+    public TourResponseDto assignDriver(String id, String driverId, String livreurPersonId, String assignedBy) {
+        log.info("Assigning driver to Tour ID: {}, driverId: {}, livreurPersonId: {}", id, driverId, livreurPersonId);
+        Tour tour = tourRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
+
+        if (driverId != null) {
+            tour.setDriverId(driverId);
+        }
+        if (livreurPersonId != null) {
+            tour.setLivreurPersonId(livreurPersonId);
+        }
+
+        if ("EXTERNAL".equalsIgnoreCase(tour.getExecutionMode())) {
+            tour.setAssignedByTransporterPersonId(assignedBy != null ? assignedBy : "SYSTEM");
+            tour.setTransporterAssignedAt(java.time.Instant.now());
+        }
+
+        tour.setChangeby(assignedBy != null ? assignedBy : "SYSTEM");
+        Tour saved = tourRepository.save(tour);
+        return mapToDto(saved);
+    }
+
+    @Override
+    public TourResponseDto assignVehicle(String id, String vehicleId, String assignedBy) {
+        log.info("Assigning vehicle to Tour ID: {}, vehicleId: {}", id, vehicleId);
+        Tour tour = tourRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
+
+        tour.setVehicleId(vehicleId);
+        tour.setChangeby(assignedBy != null ? assignedBy : "SYSTEM");
+        Tour saved = tourRepository.save(tour);
+        return mapToDto(saved);
+    }
+
+    @Override
+    public CheckpointResponseDto validateCheckpoint(String checkpointId, String validatedBy) {
+        log.info("Validating Checkpoint ID: {} by user: {}", checkpointId, validatedBy);
+        Checkpoint checkpoint = checkpointRepository.findById(checkpointId)
+                .orElseThrow(() -> new ResourceNotFoundException("Checkpoint", "id", checkpointId));
+
+        checkpoint.setStatus("VALIDATED");
+        checkpoint.setStatusDescription("Arrêt validé et confirmé");
+        checkpoint.setStatusDate(java.time.Instant.now());
+        checkpoint.setActualArrival(java.time.Instant.now());
+        checkpoint.setChangeby(validatedBy != null ? validatedBy : "SYSTEM");
+
+        Checkpoint saved = checkpointRepository.save(checkpoint);
+        return mapCheckpointToDto(saved);
+    }
+
+    @Override
+    public CheckpointResponseDto skipCheckpoint(String checkpointId, String reason, String skippedBy) {
+        log.info("Skipping Checkpoint ID: {} with reason: {}", checkpointId, reason);
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException("Un motif de saut est obligatoire pour ignorer un arrêt de tournée.");
+        }
+
+        Checkpoint checkpoint = checkpointRepository.findById(checkpointId)
+                .orElseThrow(() -> new ResourceNotFoundException("Checkpoint", "id", checkpointId));
+
+        checkpoint.setStatus("SKIPPED");
+        checkpoint.setStatusDescription("Arrêt sauté : " + reason);
+        checkpoint.setStatusDate(java.time.Instant.now());
+        checkpoint.setSkipReason(reason);
+        checkpoint.setChangeby(skippedBy != null ? skippedBy : "SYSTEM");
+
+        Checkpoint saved = checkpointRepository.save(checkpoint);
+        return mapCheckpointToDto(saved);
+    }
+
     private TourResponseDto mapToDto(Tour tour) {
         if (tour == null) {
             return null;

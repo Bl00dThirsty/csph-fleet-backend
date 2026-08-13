@@ -69,6 +69,14 @@ public class TransporterContractController {
         return ResponseEntity.ok(ApiResponse.success(contractService.updateContract(id, dto, updatedBy)));
     }
 
+    @RequiresPermission("CONTRACT_TERMINATE")
+    @PostMapping("/{id}/terminate")
+    public ResponseEntity<ApiResponse<TransporterContractResponseDto>> terminateContract(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-PersonId", required = false) String terminatedBy) {
+        return ResponseEntity.ok(ApiResponse.success(contractService.terminateContract(id, terminatedBy)));
+    }
+
     @RequiresPermission("CONTRACT_DELETE")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteContract(@PathVariable String id) {

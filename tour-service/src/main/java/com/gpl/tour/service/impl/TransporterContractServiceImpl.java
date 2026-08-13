@@ -107,6 +107,18 @@ public class TransporterContractServiceImpl implements TransporterContractServic
 
     @Override
     @Transactional
+    public TransporterContractResponseDto terminateContract(String id, String terminatedBy) {
+        TransporterContract tc = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("CONTRACT_NOT_FOUND", "TransporterContract not found with ID: " + id));
+        tc.setActive(false);
+        tc.setEndedAt(java.time.Instant.now());
+        tc.setChangeby(terminatedBy);
+        TransporterContract saved = repository.save(tc);
+        return mapToDto(saved);
+    }
+
+    @Override
+    @Transactional
     public void deleteContract(String id) {
         if (!repository.existsById(id)) {
             throw new ResourceNotFoundException("CONTRACT_NOT_FOUND", "TransporterContract not found with ID: " + id);

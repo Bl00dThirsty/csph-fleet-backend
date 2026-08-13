@@ -14,5 +14,6 @@ public interface ScanEventService {
             String rfidTagId,
             String direction,
             Pageable pageable);
+    ScanEventResponse resolveConflict(String id, com.gpl.cylinder.dto.ResolveScanConflictRequest request, String resolvedBy);
     void deleteScanEvent(String id);
 }

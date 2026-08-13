@@ -75,6 +75,42 @@ public class DeclarationController {
         return ResponseEntity.ok(ApiResponse.ok(result, "Declaration submitted successfully"));
     }
 
+    @RequiresPermission("DECLARATION_APPROVE")
+    @PostMapping("/{id}/review")
+    public ResponseEntity<ApiResponse<DeclarationResponse>> reviewDeclaration(
+            @PathVariable String id,
+            @RequestParam(required = false) String reviewerPersonId,
+            @RequestParam(required = false) String notes,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request to review declaration: {}", id);
+        DeclarationResponse result = declarationService.reviewDeclaration(id, reviewerPersonId, notes, username);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Declaration put under review"));
+    }
+
+    @RequiresPermission("DECLARATION_APPROVE")
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<ApiResponse<DeclarationResponse>> approveDeclaration(
+            @PathVariable String id,
+            @RequestParam(required = false) String approvedByPersonId,
+            @RequestParam(required = false) String notes,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request to approve declaration: {}", id);
+        DeclarationResponse result = declarationService.approveDeclaration(id, approvedByPersonId, notes, username);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Declaration approved successfully"));
+    }
+
+    @RequiresPermission("DECLARATION_REJECT")
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<ApiResponse<DeclarationResponse>> rejectDeclaration(
+            @PathVariable String id,
+            @RequestParam(required = false) String rejectedByPersonId,
+            @RequestParam(required = false) String reason,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request to reject declaration: {}", id);
+        DeclarationResponse result = declarationService.rejectDeclaration(id, rejectedByPersonId, reason, username);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Declaration rejected successfully"));
+    }
+
     @RequiresPermission("DECLARATION_DELETE")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteDeclaration(@PathVariable String id) {

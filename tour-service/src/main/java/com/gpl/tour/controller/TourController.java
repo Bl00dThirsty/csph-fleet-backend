@@ -87,4 +87,57 @@ public class TourController {
         tourService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok(null, "Tour deleted successfully"));
     }
+
+    /* ── Phase 3 Lifecycle & Dynamic Assignment Endpoints ─────────────────── */
+
+    @RequiresPermission("TOUR_START")
+    @PostMapping("/{id}/start")
+    public ResponseEntity<ApiResponse<TourResponseDto>> startTour(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request to start Tour: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(tourService.startTour(id, username), "Tournée démarrée avec succès"));
+    }
+
+    @RequiresPermission("TOUR_CLOSE")
+    @PostMapping("/{id}/close")
+    public ResponseEntity<ApiResponse<TourResponseDto>> closeTour(
+            @PathVariable String id,
+            @RequestParam(required = false) Double loadedQuantity,
+            @RequestParam(required = false) Double deliveredQuantity,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request to close Tour: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(tourService.closeTour(id, loadedQuantity, deliveredQuantity, username), "Tournée clôturée avec succès"));
+    }
+
+    @RequiresPermission("TOUR_CANCEL")
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse<TourResponseDto>> cancelTour(
+            @PathVariable String id,
+            @RequestParam(required = false) String reason,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request to cancel Tour: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(tourService.cancelTour(id, reason, username), "Tournée annulée avec succès"));
+    }
+
+    @RequiresPermission("TOUR_ASSIGN_DRIVER")
+    @PostMapping("/{id}/assign-driver")
+    public ResponseEntity<ApiResponse<TourResponseDto>> assignDriver(
+            @PathVariable String id,
+            @RequestParam(required = false) String driverId,
+            @RequestParam(required = false) String livreurPersonId,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request to assign driver to Tour: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(tourService.assignDriver(id, driverId, livreurPersonId, username), "Chauffeur assigné avec succès"));
+    }
+
+    @RequiresPermission("TOUR_ASSIGN_VEHICLE")
+    @PostMapping("/{id}/assign-vehicle")
+    public ResponseEntity<ApiResponse<TourResponseDto>> assignVehicle(
+            @PathVariable String id,
+            @RequestParam String vehicleId,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request to assign vehicle to Tour: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(tourService.assignVehicle(id, vehicleId, username), "Véhicule assigné avec succès"));
+    }
 }

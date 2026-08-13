@@ -64,4 +64,41 @@ public interface TourService {
      * Deletes a Checkpoint by its ID.
      */
     void deleteCheckpoint(String checkpointId);
+
+    /* ── Operation Lifecycle & Dynamic Assignments (Phase 3) ─────────────── */
+
+    /*
+     * Démarrer une tournée (PLANNED -> STARTED).
+     */
+    TourResponseDto startTour(String id, String startedBy);
+
+    /*
+     * Clôturer une tournée (STARTED -> COMPLETED).
+     */
+    TourResponseDto closeTour(String id, Double loadedQuantity, Double deliveredQuantity, String closedBy);
+
+    /*
+     * Annuler une tournée.
+     */
+    TourResponseDto cancelTour(String id, String reason, String cancelledBy);
+
+    /*
+     * Assigner un chauffeur à la tournée.
+     */
+    TourResponseDto assignDriver(String id, String driverId, String livreurPersonId, String assignedBy);
+
+    /*
+     * Assigner un véhicule à la tournée.
+     */
+    TourResponseDto assignVehicle(String id, String vehicleId, String assignedBy);
+
+    /*
+     * Valider la réalisation d'un arrêt de tournée avec horodatage actualArrival.
+     */
+    CheckpointResponseDto validateCheckpoint(String checkpointId, String validatedBy);
+
+    /*
+     * Sauter un arrêt de tournée avec justification obligatoire.
+     */
+    CheckpointResponseDto skipCheckpoint(String checkpointId, String reason, String skippedBy);
 }

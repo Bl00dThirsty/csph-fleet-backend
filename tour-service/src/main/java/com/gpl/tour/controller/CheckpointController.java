@@ -91,4 +91,25 @@ public class CheckpointController {
         tourService.deleteCheckpoint(id);
         return ResponseEntity.ok(ApiResponse.ok(null, "Arrêt de tournée supprimé avec succès"));
     }
+
+    /* ── Phase 3 Checkpoint Execution Endpoints ───────────────────────────── */
+
+    @RequiresPermission("CHECKPOINT_VALIDATE")
+    @PostMapping("/api/v1/checkpoints/{id}/validate")
+    public ResponseEntity<ApiResponse<CheckpointResponseDto>> validateCheckpoint(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("Requête REST pour valider l'arrêt ID: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(tourService.validateCheckpoint(id, username), "Arrêt de tournée validé avec succès"));
+    }
+
+    @RequiresPermission("CHECKPOINT_SKIP")
+    @PostMapping("/api/v1/checkpoints/{id}/skip")
+    public ResponseEntity<ApiResponse<CheckpointResponseDto>> skipCheckpoint(
+            @PathVariable String id,
+            @RequestParam String reason,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("Requête REST pour sauter l'arrêt ID: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(tourService.skipCheckpoint(id, reason, username), "Arrêt de tournée ignoré avec succès"));
+    }
 }

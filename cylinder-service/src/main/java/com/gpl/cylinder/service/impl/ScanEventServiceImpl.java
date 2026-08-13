@@ -86,6 +86,19 @@ public class ScanEventServiceImpl implements ScanEventService {
     }
 
     @Override
+    public ScanEventResponse resolveConflict(String id, com.gpl.cylinder.dto.ResolveScanConflictRequest request, String resolvedBy) {
+        ScanEvent event = scanEventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("ScanEvent", id));
+
+        event.setConflictStatus("RESOLVED");
+        String author = (resolvedBy != null && !resolvedBy.isBlank()) ? resolvedBy : "SYSTEM";
+        event.setChangeby(author);
+
+        ScanEvent updated = scanEventRepository.save(event);
+        return mapToResponse(updated);
+    }
+
+    @Override
     public void deleteScanEvent(String id) {
         ScanEvent event = scanEventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ScanEvent", id));

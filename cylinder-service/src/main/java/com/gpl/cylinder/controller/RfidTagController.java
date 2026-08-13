@@ -21,7 +21,7 @@ public class RfidTagController {
 
     private final RfidTagService rfidTagService;
 
-    @RequiresPermission("rfid.read")
+    @RequiresPermission("RFID_VIEW")
     @GetMapping
     public PageResponse<RfidTagResponse> listRfidTags(
             @RequestParam(required = false) String tagUid,
@@ -34,19 +34,19 @@ public class RfidTagController {
         return rfidTagService.listRfidTags(tagUid, bottleSerial, currentSiteId, status, pageable);
     }
 
-    @RequiresPermission("rfid.read")
+    @RequiresPermission("RFID_VIEW")
     @GetMapping("/{id}")
     public ApiResponse<RfidTagResponse> getRfidTag(@PathVariable String id) {
         return ApiResponse.success(rfidTagService.getRfidTag(id));
     }
 
-    @RequiresPermission("rfid.read")
+    @RequiresPermission("RFID_VIEW")
     @GetMapping("/tag/{tagUid}")
     public ApiResponse<RfidTagResponse> getByTagUid(@PathVariable String tagUid) {
         return ApiResponse.success(rfidTagService.getByTagUid(tagUid));
     }
 
-    @RequiresPermission("rfid.create")
+    @RequiresPermission("RFID_CREATE")
     @PostMapping
     public ApiResponse<RfidTagResponse> createRfidTag(
             @Valid @RequestBody CreateRfidTagRequest request,
@@ -54,7 +54,7 @@ public class RfidTagController {
         return ApiResponse.success(rfidTagService.createRfidTag(request, userId));
     }
 
-    @RequiresPermission("rfid.update")
+    @RequiresPermission("RFID_UPDATE")
     @PutMapping("/{id}")
     public ApiResponse<RfidTagResponse> updateRfidTag(
             @PathVariable String id,
@@ -63,7 +63,7 @@ public class RfidTagController {
         return ApiResponse.success(rfidTagService.updateRfidTag(id, request, userId));
     }
 
-    @RequiresPermission("rfid.delete")
+    @RequiresPermission("RFID_DELETE")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteRfidTag(@PathVariable String id) {
         rfidTagService.deleteRfidTag(id);

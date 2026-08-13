@@ -12,5 +12,8 @@ public interface DeclarationService {
     DeclarationResponse getDeclaration(String id);
     PageResponse<DeclarationResponse> listDeclarations(String declaringOrganizationId, String siteId, String status, String period, Pageable pageable);
     DeclarationResponse submitDeclaration(String id, String username);
+    DeclarationResponse reviewDeclaration(String id, String reviewerPersonId, String notes, String username);
+    DeclarationResponse approveDeclaration(String id, String approvedByPersonId, String notes, String username);
+    DeclarationResponse rejectDeclaration(String id, String rejectedByPersonId, String reason, String username);
     void deleteDeclaration(String id);
 }

@@ -134,6 +134,32 @@ public class CylinderServiceImpl implements CylinderService {
     }
 
     @Override
+    public CylinderResponse transferCylinder(String id, com.gpl.cylinder.dto.TransferCylinderRequest request, String transferredBy) {
+        Cylinder cylinder = cylinderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cylinder", id));
+
+        cylinder.setCurrentSiteId(request.getTargetSiteId());
+        if (request.getTargetHolderOrganizationId() != null && !request.getTargetHolderOrganizationId().isBlank()) {
+            cylinder.setCurrentHolderOrganizationId(request.getTargetHolderOrganizationId());
+        }
+        if (request.getFillStatus() != null && !request.getFillStatus().isBlank()) {
+            cylinder.setFillStatus(request.getFillStatus());
+        }
+
+        String author = (transferredBy != null && !transferredBy.isBlank()) ? transferredBy : "SYSTEM";
+        cylinder.setChangeby(author);
+        String auditMsg = "Transféré vers le site " + request.getTargetSiteId();
+        if (request.getNotes() != null && !request.getNotes().isBlank()) {
+            auditMsg += " (" + request.getNotes() + ")";
+        }
+        cylinder.setStatusDescription(auditMsg);
+        cylinder.setStatusDate(java.time.Instant.now());
+
+        Cylinder updated = cylinderRepository.save(cylinder);
+        return mapToResponse(updated);
+    }
+
+    @Override
     public void deleteCylinder(String id) {
         Cylinder cylinder = cylinderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cylinder", id));

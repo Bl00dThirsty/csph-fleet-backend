@@ -148,12 +148,54 @@ public class DeclarationServiceImpl implements DeclarationService {
         Declaration declaration = declarationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Declaration", id));
 
-        declaration.updateStatus("SUBMITTED", "Soumis");
+        declaration.updateStatus("SUBMITTED", "Soumis pour révision");
         String author = (username != null && !username.isBlank()) ? username : "SYSTEM";
         declaration.setChangeby(author);
         if (declaration.getSubmittedByPersonId() == null) {
             declaration.setSubmittedByPersonId(author);
         }
+
+        Declaration saved = declarationRepository.save(declaration);
+        return DeclarationResponse.fromEntity(saved);
+    }
+
+    @Override
+    public DeclarationResponse reviewDeclaration(String id, String reviewerPersonId, String notes, String username) {
+        log.info("Reviewing declaration: {}", id);
+        Declaration declaration = declarationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Declaration", id));
+
+        declaration.updateStatus("UNDER_REVIEW", notes != null && !notes.isBlank() ? "En cours d'examen: " + notes : "En cours d'examen par la commission");
+        String author = (username != null && !username.isBlank()) ? username : "SYSTEM";
+        declaration.setChangeby(author);
+
+        Declaration saved = declarationRepository.save(declaration);
+        return DeclarationResponse.fromEntity(saved);
+    }
+
+    @Override
+    public DeclarationResponse approveDeclaration(String id, String approvedByPersonId, String notes, String username) {
+        log.info("Approving declaration: {}", id);
+        Declaration declaration = declarationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Declaration", id));
+
+        declaration.updateStatus("APPROVED", notes != null && !notes.isBlank() ? "Approuvé: " + notes : "Déclaration de volume approuvée");
+        String author = (username != null && !username.isBlank()) ? username : "SYSTEM";
+        declaration.setChangeby(author);
+
+        Declaration saved = declarationRepository.save(declaration);
+        return DeclarationResponse.fromEntity(saved);
+    }
+
+    @Override
+    public DeclarationResponse rejectDeclaration(String id, String rejectedByPersonId, String reason, String username) {
+        log.info("Rejecting declaration: {}", id);
+        Declaration declaration = declarationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Declaration", id));
+
+        declaration.updateStatus("REJECTED", reason != null && !reason.isBlank() ? "Rejeté: " + reason : "Déclaration de volume rejetée");
+        String author = (username != null && !username.isBlank()) ? username : "SYSTEM";
+        declaration.setChangeby(author);
 
         Declaration saved = declarationRepository.save(declaration);
         return DeclarationResponse.fromEntity(saved);
