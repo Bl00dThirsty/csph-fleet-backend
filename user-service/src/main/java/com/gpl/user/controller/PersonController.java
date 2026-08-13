@@ -140,6 +140,15 @@ public class PersonController {
         return ApiResponse.success(siteAssignmentService.assignSite(request, assignedBy));
     }
 
+    @RequiresPermission("PERSON_UPDATE")
+    @DeleteMapping("/{id}/sites/{assignmentId}")
+    public ApiResponse<Void> revokeSite(
+            @PathVariable String id,
+            @PathVariable String assignmentId) {
+        siteAssignmentService.revokeSite(assignmentId);
+        return ApiResponse.success(null);
+    }
+
     @RequiresPermission("PERMISSION_VIEW")
     @GetMapping("/{id}/permissions")
     public ApiResponse<Set<String>> getPermissions(@PathVariable String id) {

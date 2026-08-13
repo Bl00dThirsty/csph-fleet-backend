@@ -65,4 +65,11 @@ public class UserGroupController {
         groupService.removeMember(id, personId);
         return ApiResponse.success(null);
     }
+
+    @RequiresPermission("GROUP_DELETE")
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deleteGroup(@PathVariable String id) {
+        groupService.deleteGroup(id);
+        return ApiResponse.success(null);
+    }
 }

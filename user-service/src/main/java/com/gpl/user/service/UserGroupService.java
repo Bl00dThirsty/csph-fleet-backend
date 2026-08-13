@@ -102,6 +102,11 @@ public class UserGroupService {
         });
     }
 
+    @Transactional
+    public void deleteGroup(String id) {
+        groupRepository.deleteById(id);
+    }
+
     private GroupResponse buildGroupResponse(UserGroup group) {
         GroupResponse res = new GroupResponse();
         res.setId(group.getId());
