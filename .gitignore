@@ -6,3 +6,9 @@ target/
 .DS_Store
 ~$*
 
+# Antigravity & AI
+antigravity/
+.gemini/
+AI/
+.system_generated/
+.ai/

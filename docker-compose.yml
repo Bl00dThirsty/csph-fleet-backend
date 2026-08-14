@@ -119,6 +119,25 @@ services:
     networks:
       - gpl-network
 
+  postgres-fleet:
+    image: timescale/timescaledb-ha:pg16
+    container_name: gpl-postgres-fleet
+    environment:
+      POSTGRES_DB: gpl_fleet_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5439:5432"
+    volumes:
+      - pgdata-fleet:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gpl-network
+
   # ════════════════════════════════════════════════════════════
   # INFRASTRUCTURE SERVICES
   # ════════════════════════════════════════════════════════════
@@ -287,6 +306,28 @@ services:
     networks:
       - gpl-network
 
+  fleet-device-service:
+    build:
+      context: .
+      dockerfile: ./fleet-device-service/Dockerfile
+    container_name: gpl-fleet-device-service
+    ports:
+      - "8088:8088"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-fleet:5432/gpl_fleet_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - DB_HOST=postgres-fleet
+    depends_on:
+      postgres-fleet:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - gpl-network
+
 # ════════════════════════════════════════════════════════════
 # VOLUMES & NETWORKS
 # ════════════════════════════════════════════════════════════
@@ -298,6 +339,7 @@ volumes:
   pgdata-audit:
   pgdata-notif:
   pgdata-tour:
+  pgdata-fleet:
 
 networks:
   gpl-network:
