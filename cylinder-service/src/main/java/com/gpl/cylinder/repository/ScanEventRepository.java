@@ -10,5 +10,5 @@ import java.util.List;
 @Repository
 public interface ScanEventRepository extends JpaRepository<ScanEvent, String>, JpaSpecificationExecutor<ScanEvent> {
     List<ScanEvent> findByRfidTagId(String rfidTagId);
-    List<ScanEvent> findByLivreurPersonId(String livreurPersonId);
+    List<ScanEvent> findByDriverPersonId(String driverPersonId);
 }

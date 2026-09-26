@@ -10,7 +10,7 @@ public interface ScanEventService {
     ScanEventResponse getScanEvent(String id);
     PageResponse<ScanEventResponse> listScanEvents(
             String checkpointId,
-            String livreurPersonId,
+            String driverPersonId,
             String rfidTagId,
             String direction,
             Pageable pageable);

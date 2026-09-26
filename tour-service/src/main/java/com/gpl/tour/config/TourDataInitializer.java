@@ -89,7 +89,7 @@ public class TourDataInitializer implements CommandLineRunner {
          */
         tour.setVehicleId(null);
         tour.setDriverId(null);
-        tour.setLivreurPersonId(null);
+        tour.setDriverPersonId(null);
         tour.setType("VRAC");
         tour.setRequestedQuantity(18_000.0);
         tour.setLoadedQuantity(null);
@@ -166,7 +166,7 @@ public class TourDataInitializer implements CommandLineRunner {
         tour.setTransporterOrganizationId("TRP-ABC");
         tour.setVehicleId(null);
         tour.setDriverId(null);
-        tour.setLivreurPersonId(null);
+        tour.setDriverPersonId(null);
         tour.setType("BOUTEILLES50KG");
         tour.setRequestedQuantity(10_000.0);
         tour.setLoadedQuantity(null);

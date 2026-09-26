@@ -40,5 +40,5 @@ public class CreateTourDto {
     private String transporterOrganizationId;
     private String vehicleId;
     private String driverId;
-    private String livreurPersonId;
+    private String driverPersonId;
 }

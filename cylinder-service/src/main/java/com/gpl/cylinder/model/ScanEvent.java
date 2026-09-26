@@ -14,7 +14,7 @@ import java.time.Instant;
 @NoArgsConstructor
 public class ScanEvent extends BaseEntity {
     private String checkpointId;
-    private String livreurPersonId;
+    private String driverPersonId;
     private String rfidTagId;
     private String direction;
     private Double latitude;

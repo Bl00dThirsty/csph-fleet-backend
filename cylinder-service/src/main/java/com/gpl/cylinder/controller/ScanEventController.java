@@ -24,13 +24,13 @@ public class ScanEventController {
     @GetMapping
     public PageResponse<ScanEventResponse> listScanEvents(
             @RequestParam(required = false) String checkpointId,
-            @RequestParam(required = false) String livreurPersonId,
+            @RequestParam(required = false) String driverPersonId,
             @RequestParam(required = false) String rfidTagId,
             @RequestParam(required = false) String direction,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("timestamp").descending());
-        return scanEventService.listScanEvents(checkpointId, livreurPersonId, rfidTagId, direction, pageable);
+        return scanEventService.listScanEvents(checkpointId, driverPersonId, rfidTagId, direction, pageable);
     }
 
     @RequiresPermission("SCAN_VIEW")

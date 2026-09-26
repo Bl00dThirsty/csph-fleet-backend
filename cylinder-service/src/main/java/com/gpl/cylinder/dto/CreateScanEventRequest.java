@@ -11,7 +11,7 @@ import java.time.Instant;
 @Builder
 public class CreateScanEventRequest {
     private String checkpointId;
-    private String livreurPersonId;
+    private String driverPersonId;
     @NotBlank(message = "L'ID du tag RFID est obligatoire")
     private String rfidTagId;
     private String direction;

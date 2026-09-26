@@ -61,8 +61,8 @@ public class Tour extends AuditableEntity {
     private String driverId;
 
     /* Identifiant de l'utilisateur livreur (PDA) */
-    @Column(name = "livreur_user_id")
-    private String livreurPersonId;
+    @Column(name = "driver_person_id")
+    private String driverPersonId;
 
     /* Identifiant de l'utilisateur transporteur ayant confirmé l'affectation */
     @Column(name = "assigned_by_transporter_user_id")

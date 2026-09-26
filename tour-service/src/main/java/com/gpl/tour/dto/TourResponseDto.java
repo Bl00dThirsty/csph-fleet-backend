@@ -62,7 +62,7 @@ public class TourResponseDto {
     private String driverId;
 
     /** Identifiant UUID de l'utilisateur livreur sur PDA. */
-    private String livreurPersonId;
+    private String driverPersonId;
 
     /** Identifiant de l'utilisateur transporteur ayant confirmé l'affectation. */
     private String assignedByTransporterPersonId;

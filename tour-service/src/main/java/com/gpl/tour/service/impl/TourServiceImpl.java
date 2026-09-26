@@ -49,7 +49,7 @@ public class TourServiceImpl implements TourService {
         tour.setTransporterOrganizationId(dto.getTransporterOrganizationId());
         tour.setVehicleId(dto.getVehicleId());
         tour.setDriverId(dto.getDriverId());
-        tour.setLivreurPersonId(dto.getLivreurPersonId());
+        tour.setDriverPersonId(dto.getDriverPersonId());
 
         tour.setCreatedBy(createdBy);
 
@@ -121,8 +121,8 @@ public class TourServiceImpl implements TourService {
         if (dto.getDriverId() != null) {
             tour.setDriverId(dto.getDriverId());
         }
-        if (dto.getLivreurPersonId() != null) {
-            tour.setLivreurPersonId(dto.getLivreurPersonId());
+        if (dto.getDriverPersonId() != null) {
+            tour.setDriverPersonId(dto.getDriverPersonId());
         }
 
         tour.setChangeby(updatedBy);
@@ -327,16 +327,16 @@ public class TourServiceImpl implements TourService {
     }
 
     @Override
-    public TourResponseDto assignDriver(String id, String driverId, String livreurPersonId, String assignedBy) {
-        log.info("Assigning driver to Tour ID: {}, driverId: {}, livreurPersonId: {}", id, driverId, livreurPersonId);
+    public TourResponseDto assignDriver(String id, String driverId, String driverPersonId, String assignedBy) {
+        log.info("Assigning driver to Tour ID: {}, driverId: {}, driverPersonId: {}", id, driverId, driverPersonId);
         Tour tour = tourRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
 
         if (driverId != null) {
             tour.setDriverId(driverId);
         }
-        if (livreurPersonId != null) {
-            tour.setLivreurPersonId(livreurPersonId);
+        if (driverPersonId != null) {
+            tour.setDriverPersonId(driverPersonId);
         }
 
         if ("EXTERNAL".equalsIgnoreCase(tour.getExecutionMode())) {
@@ -417,7 +417,7 @@ public class TourServiceImpl implements TourService {
                 .transporterOrganizationId(tour.getTransporterOrganizationId())
                 .vehicleId(tour.getVehicleId())
                 .driverId(tour.getDriverId())
-                .livreurPersonId(tour.getLivreurPersonId())
+                .driverPersonId(tour.getDriverPersonId())
                 .assignedByTransporterPersonId(tour.getAssignedByTransporterPersonId())
                 .transporterAssignedAt(tour.getTransporterAssignedAt())
                 /* ── Type & Quantités ────────────────────────────── */

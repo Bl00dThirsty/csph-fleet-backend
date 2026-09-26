@@ -138,6 +138,44 @@ services:
     networks:
       - gpl-network
 
+  postgres-cylinder:
+    image: postgres:16-alpine
+    container_name: gpl-postgres-cylinder
+    environment:
+      POSTGRES_DB: gpl_cylinder_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5440:5432"
+    volumes:
+      - pgdata-cylinder:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gpl-network
+
+  postgres-subsidy:
+    image: postgres:16-alpine
+    container_name: gpl-postgres-subsidy
+    environment:
+      POSTGRES_DB: gpl_subsidy_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5441:5432"
+    volumes:
+      - pgdata-subsidy:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gpl-network
+
   # ════════════════════════════════════════════════════════════
   # INFRASTRUCTURE SERVICES
   # ════════════════════════════════════════════════════════════
@@ -328,6 +366,48 @@ services:
     networks:
       - gpl-network
 
+  cylinder-service:
+    build:
+      context: .
+      dockerfile: ./cylinder-service/Dockerfile
+    container_name: gpl-cylinder-service
+    ports:
+      - "8087:8087"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-cylinder:5432/gpl_cylinder_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - DB_HOST=postgres-cylinder
+    depends_on:
+      postgres-cylinder:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - gpl-network
+
+  subsidy-service:
+    build:
+      context: .
+      dockerfile: ./subsidy-service/Dockerfile
+    container_name: gpl-subsidy-service
+    ports:
+      - "8089:8089"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-subsidy:5432/gpl_subsidy_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - DB_HOST=postgres-subsidy
+    depends_on:
+      postgres-subsidy:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - gpl-network
+
 # ════════════════════════════════════════════════════════════
 # VOLUMES & NETWORKS
 # ════════════════════════════════════════════════════════════
@@ -340,6 +420,8 @@ volumes:
   pgdata-notif:
   pgdata-tour:
   pgdata-fleet:
+  pgdata-cylinder:
+  pgdata-subsidy:
 
 networks:
   gpl-network:

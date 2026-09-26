@@ -18,8 +18,12 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * REST controller for managing persons, users, and their role/site assignments.
+ * Mapped to both /api/v1/persons and /api/v1/users for frontend client compatibility.
+ */
 @RestController
-@RequestMapping("/api/v1/persons")
+@RequestMapping({"/api/v1/persons", "/api/v1/users"})
 public class PersonController {
 
     private final PersonService personService;
@@ -62,8 +66,20 @@ public class PersonController {
     @PostMapping("/")
     public ApiResponse<PersonResponse> createPerson(
             @Valid @RequestBody CreatePersonRequest request,
-            @RequestHeader("X-User-PersonId") String createdBy) {
-        return ApiResponse.success(personService.createPerson(request, createdBy));
+            @RequestHeader(value = "X-User-PersonId", required = false) String createdBy) {
+        return ApiResponse.success(personService.createPerson(request, createdBy != null ? createdBy : "SYSTEM"));
+    }
+
+    /**
+     * Creates a new person and provisions authentication credentials in auth-service.
+     * Used for creating drivers (livreurs) and accounts with immediate login access.
+     */
+    @RequiresPermission("PERSON_CREATE")
+    @PostMapping("/with-auth")
+    public ApiResponse<PersonResponse> createPersonWithAuth(
+            @Valid @RequestBody CreatePersonWithAuthRequest request,
+            @RequestHeader(value = "X-User-PersonId", required = false) String createdBy) {
+        return ApiResponse.success(personService.createPersonWithAuth(request, createdBy != null ? createdBy : "SYSTEM"));
     }
 
     @RequiresPermission("PERSON_UPDATE")
@@ -71,8 +87,8 @@ public class PersonController {
     public ApiResponse<PersonResponse> updatePerson(
             @PathVariable String id,
             @RequestBody UpdatePersonRequest request,
-            @RequestHeader("X-User-PersonId") String changedBy) {
-        return ApiResponse.success(personService.updatePerson(id, request, changedBy));
+            @RequestHeader(value = "X-User-PersonId", required = false) String changedBy) {
+        return ApiResponse.success(personService.updatePerson(id, request, changedBy != null ? changedBy : "SYSTEM"));
     }
 
     @RequiresPermission("PERSON_UPDATE")
@@ -80,8 +96,8 @@ public class PersonController {
     public ApiResponse<PersonResponse> updateStatus(
             @PathVariable String id,
             @Valid @RequestBody UpdateStatusRequest request,
-            @RequestHeader("X-User-PersonId") String changedBy) {
-        return ApiResponse.success(personService.updatePersonStatus(id, request, changedBy));
+            @RequestHeader(value = "X-User-PersonId", required = false) String changedBy) {
+        return ApiResponse.success(personService.updatePersonStatus(id, request, changedBy != null ? changedBy : "SYSTEM"));
     }
 
     @RequiresPermission("PERSON_VIEW")
@@ -108,9 +124,9 @@ public class PersonController {
     public ApiResponse<UserRoleAssignment> assignRole(
             @PathVariable String id,
             @Valid @RequestBody AssignRoleRequest request,
-            @RequestHeader("X-User-PersonId") String assignedBy) {
+            @RequestHeader(value = "X-User-PersonId", required = false) String assignedBy) {
         request.setPersonId(personService.getPerson(id).getPersonId());
-        return ApiResponse.success(roleAssignmentService.assignRole(request, assignedBy));
+        return ApiResponse.success(roleAssignmentService.assignRole(request, assignedBy != null ? assignedBy : "SYSTEM"));
     }
 
     @RequiresPermission("ROLE_UPDATE")
@@ -118,8 +134,8 @@ public class PersonController {
     public ApiResponse<Void> revokeRole(
             @PathVariable String id,
             @PathVariable String assignmentId,
-            @RequestHeader("X-User-PersonId") String revokedBy) {
-        roleAssignmentService.revokeRole(assignmentId, revokedBy);
+            @RequestHeader(value = "X-User-PersonId", required = false) String revokedBy) {
+        roleAssignmentService.revokeRole(assignmentId, revokedBy != null ? revokedBy : "SYSTEM");
         return ApiResponse.success(null);
     }
 
@@ -135,9 +151,9 @@ public class PersonController {
     public ApiResponse<UserSiteAssignment> assignSite(
             @PathVariable String id,
             @Valid @RequestBody AssignSiteRequest request,
-            @RequestHeader("X-User-PersonId") String assignedBy) {
+            @RequestHeader(value = "X-User-PersonId", required = false) String assignedBy) {
         request.setPersonId(personService.getPerson(id).getPersonId());
-        return ApiResponse.success(siteAssignmentService.assignSite(request, assignedBy));
+        return ApiResponse.success(siteAssignmentService.assignSite(request, assignedBy != null ? assignedBy : "SYSTEM"));
     }
 
     @RequiresPermission("PERSON_UPDATE")

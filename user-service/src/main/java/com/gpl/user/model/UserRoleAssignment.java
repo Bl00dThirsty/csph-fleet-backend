@@ -24,4 +24,13 @@ public class UserRoleAssignment extends AuditableEntity {
     private boolean isActive = true;
     private Instant validFrom;
     private Instant validUntil;
+
+    /**
+     * Getter providing roleCode for auth-service JWT role mapping compatibility.
+     *
+     * @return the role identifier/code
+     */
+    public String getRoleCode() {
+        return roleId;
+    }
 }

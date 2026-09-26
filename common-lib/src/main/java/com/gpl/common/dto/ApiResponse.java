@@ -6,10 +6,10 @@ import lombok.*;
 import java.time.Instant;
 
 /**
- * Réponse API standardisée pour tous les microservices.
- * Supporte le pattern ok() et l'alias success().
+ * Standardized API response for all microservices.
+ * Supports both ok() and success() method conventions.
  *
- * @param <T> Type du payload
+ * @param <T> the type of the response payload
  */
 @Getter
 @Setter

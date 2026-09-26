@@ -2,7 +2,13 @@ package com.gpl.auth.service;
 
 import com.gpl.common.exception.UnauthorizedException;
 import com.gpl.common.exception.ResourceNotFoundException;
-import com.gpl.auth.dto.*;
+import com.gpl.auth.dto.ChangePasswordRequest;
+import com.gpl.auth.dto.LoginRequest;
+import com.gpl.auth.dto.LoginResponse;
+import com.gpl.auth.dto.RegisterAuthUserRequest;
+import com.gpl.auth.dto.TokenRefreshRequest;
+import com.gpl.auth.dto.TokenRefreshResponse;
+import com.gpl.common.dto.ApiResponse;
 import com.gpl.auth.model.AuthUser;
 import com.gpl.auth.model.RefreshToken;
 import com.gpl.auth.repository.AuthUserRepository;
@@ -96,8 +102,10 @@ public class AuthService {
                 if (data.containsKey("roles")) {
                     List<Map<String, Object>> rolesList = (List<Map<String, Object>>) data.get("roles");
                     for (Map<String, Object> roleObj : rolesList) {
-                        if (roleObj.containsKey("roleCode")) {
+                        if (roleObj.containsKey("roleCode") && roleObj.get("roleCode") != null) {
                             roles.add((String) roleObj.get("roleCode"));
+                        } else if (roleObj.containsKey("roleId") && roleObj.get("roleId") != null) {
+                            roles.add((String) roleObj.get("roleId"));
                         }
                     }
                 }
@@ -256,7 +264,7 @@ public class AuthService {
 
         authUserRepository.save(user);
 
-        return ApiResponse.success("User registered successfully", user.getPersonId());
+        return ApiResponse.ok(user.getPersonId(), "User registered successfully");
     }
 
     @Transactional
@@ -273,12 +281,12 @@ public class AuthService {
         user.setMustChangePassword(false);
         authUserRepository.save(user);
 
-        return ApiResponse.success("Password changed successfully", null);
+        return ApiResponse.ok(null, "Password changed successfully");
     }
 
     @Transactional
     public ApiResponse<Void> logout(String personId) {
         refreshTokenRepository.deleteByPersonId(personId);
-        return ApiResponse.success("Logged out successfully", null);
+        return ApiResponse.ok(null, "Logged out successfully");
     }
 }

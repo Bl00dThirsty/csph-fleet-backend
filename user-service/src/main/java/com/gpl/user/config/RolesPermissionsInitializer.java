@@ -292,9 +292,9 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         createRole("SUPERVISOR", "Superviseur", "DevOps / monitoring — Prometheus, Grafana, alertes, scores de risque", "REG", "T1", 2);
         createRole("INTEGRATEUR", "Intégrateur", "Spécialiste domaine — activation, authentification, maintenance matériel PDA+GPS+RFID", "REG", "T1", 3);
         createRole("AGENT", "Agent validateur", "Validateur terrain — suivi marketeurs, reset passwords, validation déclarations", "REG", "T1", 4);
-        createRole("MARKETEUR", "Marketeur", "Société pétrolière — flotte, tournées, quotas, chauffeurs, règles personnalisées", "MKT", "T3", 5);
-        createRole("TRANSPORTEUR", "Transporteur", "Transporteur — flotte, tournées, scans RFID/PDA, points de contrôle et chauffeurs", "TRP", "T3", 6);
-        createRole("LIVREUR", "Livreur", "Application PDA mobile — missions, scans RFID et livraisons (sans interface web)", "TRP", "T3", 7);
+        createRole("MARKETER", "Marketeur", "Société pétrolière — flotte, tournées, quotas, chauffeurs, règles personnalisées", "MKT", "T3", 5);
+        createRole("TRANSPORTER", "Transporteur", "Transporteur — flotte, tournées, scans RFID/PDA, points de contrôle et chauffeurs", "TRP", "T3", 6);
+        createRole("DRIVER", "Livreur", "Application PDA mobile — missions, scans RFID et livraisons (sans interface web)", "TRP", "T3", 7);
 
         // Rôles par défaut additionnels du plan d'attentes
         createRole("ORG_ADMIN", "Admin Organisation", "Gestion globale d'une organisation et de ses sites", "REG", "T1", 8);
@@ -388,8 +388,8 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "NOTIFICATION_VIEW_LOG", "AUDIT_VIEW_MODIFICATIONS"
         );
 
-        // MARKETEUR
-        grantPermissionsToRole("MARKETEUR",
+        // MARKETER
+        grantPermissionsToRole("MARKETER",
             "VEHICLE_VIEW", "VEHICLE_VIEW_ALL", "VEHICLE_CREATE", "VEHICLE_UPDATE", "VEHICLE_DELETE",
             "VEHICLE_ASSIGN_DRIVER", "VEHICLE_UNASSIGN_DRIVER", "VEHICLE_VIEW_OWN_ORG",
             "PERSON_VIEW", "PERSON_CREATE", "PERSON_UPDATE",
@@ -408,8 +408,8 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "REPORT_GENERATE", "REPORT_EXPORT", "DASHBOARD_VIEW", "DASHBOARD_VIEW_ANALYTICS", "NOTIFICATION_VIEW_LOG"
         );
 
-        // TRANSPORTEUR
-        grantPermissionsToRole("TRANSPORTEUR",
+        // TRANSPORTER
+        grantPermissionsToRole("TRANSPORTER",
             "VEHICLE_VIEW", "VEHICLE_VIEW_ALL", "VEHICLE_VIEW_OWN_ORG", "VEHICLE_CREATE", "VEHICLE_UPDATE", "VEHICLE_DELETE",
             "VEHICLE_ASSIGN_DRIVER", "VEHICLE_UNASSIGN_DRIVER", "VEHICLE_ACTIVATE", "VEHICLE_DEACTIVATE",
             "PERSON_VIEW", "PERSON_CREATE", "PERSON_UPDATE",
@@ -430,8 +430,8 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "AUDIT_VIEW_MODIFICATIONS"
         );
 
-        // LIVREUR
-        grantPermissionsToRole("LIVREUR",
+        // DRIVER
+        grantPermissionsToRole("DRIVER",
             "TOUR_VIEW", "TOUR_VIEW_OWN_ORG", "TOUR_UPDATE", "TOUR_ASSIGN_DRIVER",
             "CHECKPOINT_VIEW", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
             "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
@@ -600,11 +600,11 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         assignRoleToUser("admin.cspHq", "ADMIN", "CSPH");
         assignRoleToUser("superviseur.cspHq", "SUPERVISOR", "CSPH");
         assignRoleToUser("integrateur.cspHq", "INTEGRATEUR", "CSPH");
-        assignRoleToUser("gest.gpl", "MARKETEUR", "MKT-GPL");
+        assignRoleToUser("gest.gpl", "MARKETER", "MKT-GPL");
         assignRoleToUser("agent.gpl", "AGENT", "MKT-GPL");
-        assignRoleToUser("resp.abc", "TRANSPORTEUR", "TRP-ABC");
-        assignRoleToUser("chauffeur.abc1", "LIVREUR", "TRP-ABC");
-        assignRoleToUser("chauffeur.abc2", "LIVREUR", "TRP-ABC");
+        assignRoleToUser("resp.abc", "TRANSPORTER", "TRP-ABC");
+        assignRoleToUser("chauffeur.abc1", "DRIVER", "TRP-ABC");
+        assignRoleToUser("chauffeur.abc2", "DRIVER", "TRP-ABC");
         assignRoleToUser("resp.industries", "AGENT", "CLT-IND");
 
         log.info("Created {} user role assignments", userRoleAssignmentRepository.count());

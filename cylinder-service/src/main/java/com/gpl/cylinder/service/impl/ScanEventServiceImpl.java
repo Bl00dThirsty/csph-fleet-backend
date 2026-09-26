@@ -30,7 +30,7 @@ public class ScanEventServiceImpl implements ScanEventService {
     public ScanEventResponse createScanEvent(CreateScanEventRequest request, String createdBy) {
         ScanEvent event = new ScanEvent();
         event.setCheckpointId(request.getCheckpointId());
-        event.setLivreurPersonId(request.getLivreurPersonId());
+        event.setDriverPersonId(request.getDriverPersonId());
         event.setRfidTagId(request.getRfidTagId());
         event.setDirection(request.getDirection());
         event.setLatitude(request.getLatitude());
@@ -59,7 +59,7 @@ public class ScanEventServiceImpl implements ScanEventService {
     @Transactional(readOnly = true)
     public PageResponse<ScanEventResponse> listScanEvents(
             String checkpointId,
-            String livreurPersonId,
+            String driverPersonId,
             String rfidTagId,
             String direction,
             Pageable pageable) {
@@ -69,8 +69,8 @@ public class ScanEventServiceImpl implements ScanEventService {
             if (checkpointId != null && !checkpointId.isBlank()) {
                 predicates.add(cb.equal(root.get("checkpointId"), checkpointId));
             }
-            if (livreurPersonId != null && !livreurPersonId.isBlank()) {
-                predicates.add(cb.equal(root.get("livreurPersonId"), livreurPersonId));
+            if (driverPersonId != null && !driverPersonId.isBlank()) {
+                predicates.add(cb.equal(root.get("driverPersonId"), driverPersonId));
             }
             if (rfidTagId != null && !rfidTagId.isBlank()) {
                 predicates.add(cb.equal(root.get("rfidTagId"), rfidTagId));
@@ -110,7 +110,7 @@ public class ScanEventServiceImpl implements ScanEventService {
                 .id(s.getId())
                 .rowStamp(s.getRowStamp())
                 .checkpointId(s.getCheckpointId())
-                .livreurPersonId(s.getLivreurPersonId())
+                .driverPersonId(s.getDriverPersonId())
                 .rfidTagId(s.getRfidTagId())
                 .direction(s.getDirection())
                 .latitude(s.getLatitude())

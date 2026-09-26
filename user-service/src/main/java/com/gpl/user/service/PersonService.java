@@ -2,16 +2,20 @@ package com.gpl.user.service;
 
 import com.gpl.common.dto.PageResponse;
 import com.gpl.common.enums.EntityStatus;
+import com.gpl.user.client.AuthClient;
 import com.gpl.user.dto.*;
 import com.gpl.user.model.Person;
 import com.gpl.user.model.PersonEmail;
 import com.gpl.user.model.PersonPhone;
+import com.gpl.user.model.UserRoleAssignment;
 import com.gpl.user.repository.PersonEmailRepository;
 import com.gpl.user.repository.PersonPhoneRepository;
 import com.gpl.user.repository.PersonRepository;
+import com.gpl.user.repository.RoleRepository;
 import com.gpl.user.repository.UserRoleAssignmentRepository;
 import com.gpl.user.repository.UserSiteAssignmentRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,12 +23,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+/**
+ * Service for managing persons, their assignments, and authentication provisioning.
+ */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PersonService {
 
     private final PersonRepository personRepository;
@@ -32,6 +42,8 @@ public class PersonService {
     private final PersonEmailRepository emailRepository;
     private final UserRoleAssignmentRepository roleAssignmentRepository;
     private final UserSiteAssignmentRepository siteAssignmentRepository;
+    private final RoleRepository roleRepository;
+    private final AuthClient authClient;
 
     private static final AtomicLong PERSON_SEQ = new AtomicLong(5000);
 
@@ -96,6 +108,60 @@ public class PersonService {
         }
 
         return getPerson(saved.getId());
+    }
+
+    /**
+     * Creates a new person and provisions authentication credentials.
+     * Used for creating users who need login access (e.g. drivers/livreurs).
+     *
+     * @param request the creation request including auth credentials
+     * @param createdBy the identifier of the user creating this person
+     * @return the created person response
+     */
+    @Transactional
+    public PersonResponse createPersonWithAuth(CreatePersonWithAuthRequest request, String createdBy) {
+        PersonResponse personResponse = createPerson(request, createdBy);
+
+        // Assign role if specified or default to DRIVER/LIVREUR
+        String roleToAssign = request.getRoleName() != null && !request.getRoleName().isBlank()
+                ? request.getRoleName()
+                : (request.getJobCode() != null ? request.getJobCode() : "LIVREUR");
+
+        try {
+            UserRoleAssignment assignment = new UserRoleAssignment();
+            assignment.setPersonId(personResponse.getPersonId());
+            assignment.setRoleId(roleToAssign);
+            assignment.setOrganizationId(request.getOrganizationId() != null ? request.getOrganizationId() : request.getOrgId());
+            assignment.setSiteId(request.getPrimarySiteId());
+            assignment.setPrimary(true);
+            assignment.setActive(true);
+            assignment.setCreatedBy(createdBy != null ? createdBy : "SYSTEM");
+            assignment.setCreatedAt(Instant.now());
+            roleAssignmentRepository.save(assignment);
+            log.info("Assigned role {} to person {}", roleToAssign, personResponse.getPersonId());
+        } catch (Exception e) {
+            log.warn("Could not create role assignment automatically: {}", e.getMessage());
+        }
+
+        // Provision authentication credentials in auth-service
+        try {
+            Map<String, String> authRequest = new HashMap<>();
+            authRequest.put("personId", personResponse.getPersonId());
+            authRequest.put("username", request.getUsername());
+            authRequest.put("password", request.getPassword());
+            authRequest.put("email", request.getEmail());
+            authRequest.put("organizationId", request.getOrganizationId());
+            authRequest.put("orgId", request.getOrgId() != null ? request.getOrgId() : request.getOrganizationId());
+
+            authClient.register(authRequest);
+            log.info("Auth credentials provisioned successfully for person: {}", personResponse.getPersonId());
+        } catch (Exception e) {
+            log.error("Failed to provision auth credentials for person: {}. Error: {}",
+                    personResponse.getPersonId(), e.getMessage());
+            throw new RuntimeException("Person created but authentication account provisioning failed: " + e.getMessage(), e);
+        }
+
+        return getPerson(personResponse.getId());
     }
 
     @Transactional

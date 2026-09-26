@@ -125,10 +125,10 @@ public class TourController {
     public ResponseEntity<ApiResponse<TourResponseDto>> assignDriver(
             @PathVariable String id,
             @RequestParam(required = false) String driverId,
-            @RequestParam(required = false) String livreurPersonId,
+            @RequestParam(required = false) String driverPersonId,
             @RequestHeader(value = "X-User-Username", required = false) String username) {
         log.info("REST request to assign driver to Tour: {}", id);
-        return ResponseEntity.ok(ApiResponse.ok(tourService.assignDriver(id, driverId, livreurPersonId, username), "Chauffeur assigné avec succès"));
+        return ResponseEntity.ok(ApiResponse.ok(tourService.assignDriver(id, driverId, driverPersonId, username), "Chauffeur assigné avec succès"));
     }
 
     @RequiresPermission("TOUR_ASSIGN_VEHICLE")

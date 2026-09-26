@@ -12,7 +12,7 @@ public class ScanEventResponse {
     private String id;
     private Long rowStamp;
     private String checkpointId;
-    private String livreurPersonId;
+    private String driverPersonId;
     private String rfidTagId;
     private String direction;
     private Double latitude;

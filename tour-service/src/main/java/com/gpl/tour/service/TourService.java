@@ -85,7 +85,7 @@ public interface TourService {
     /*
      * Assigner un chauffeur à la tournée.
      */
-    TourResponseDto assignDriver(String id, String driverId, String livreurPersonId, String assignedBy);
+    TourResponseDto assignDriver(String id, String driverId, String driverPersonId, String assignedBy);
 
     /*
      * Assigner un véhicule à la tournée.
