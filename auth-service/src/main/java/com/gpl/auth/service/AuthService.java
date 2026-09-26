@@ -46,7 +46,9 @@ public class AuthService {
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
-        AuthUser user = authUserRepository.findByUsername(request.getUsername())
+        String identifier = request.getUsername() != null ? request.getUsername().trim() : "";
+        AuthUser user = authUserRepository.findByUsername(identifier)
+                .or(() -> authUserRepository.findByEmail(identifier))
                 .orElse(null);
 
         if (user == null) {

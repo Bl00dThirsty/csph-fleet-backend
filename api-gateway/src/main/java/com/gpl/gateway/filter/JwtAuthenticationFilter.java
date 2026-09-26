@@ -35,6 +35,7 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
     private static final List<String> OPEN_ENDPOINTS = List.of(
             "/api/v1/auth/login",
             "/api/v1/auth/register",
+            "/api/v1/auth/refresh",
             "/v3/api-docs",
             "/v3/api-docs/",
             "/swagger-ui",
@@ -98,6 +99,9 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
     }
 
     private boolean isSecured(ServerHttpRequest request) {
+        if (org.springframework.http.HttpMethod.OPTIONS.equals(request.getMethod())) {
+            return false;
+        }
         String path = request.getURI().getPath();
         return OPEN_ENDPOINTS.stream().noneMatch(path::startsWith);
     }
