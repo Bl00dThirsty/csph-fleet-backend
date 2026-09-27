@@ -1,0 +1,24 @@
+$kind: http-request
+name: GET :8086/api/v1/tours/{tourId}  (no headers - bypass)
+description: |-
+  **tour-service on :8086**, no security headers, so `TOUR_VIEW` is bypassed.
+
+  Compare `status` before and after the `start` request below - that pair shows the lifecycle actually moving without
+  a gateway anywhere in sight.
+url: "{{tourService}}/api/v1/tours/{{tourId}}"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('tourId')); });
+      console.log('tour status:', j.data.status);
+    language: text/javascript
+order: 4000

@@ -1,0 +1,18 @@
+$kind: collection
+description: |-
+  notification-service on :8085, reached through `{{gateway}}/api/v1` - templates (`/notification-templates`) and
+  sending (`/notifications/send`).
+
+  Templates are addressed by **business `code`**, never by UUID - there is no `/{id}` route.
+
+  `POST /notifications/send` omits `recipientEmail` on purpose so no SMTP connection is attempted and the endpoint
+  answers a clean 200. See the request description for what changes if you add it, and where to look afterwards
+  (`{{mailhogWeb}}`).
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      if (!pm.collectionVariables.get('accessToken')) {
+          console.warn('No accessToken yet - run 01 - Auth > POST /api/v1/auth/login first. Expect 401s.');
+      }
+    language: text/javascript
+order: 12000

@@ -18,19 +18,14 @@ import java.time.Instant;
 public class UserRoleAssignment extends AuditableEntity {
     private String personId;
     private String roleId;
+
+    @Transient
+    private String roleCode;
+
     private String organizationId;
     private String siteId;
     private boolean isPrimary;
     private boolean isActive = true;
     private Instant validFrom;
     private Instant validUntil;
-
-    /**
-     * Getter providing roleCode for auth-service JWT role mapping compatibility.
-     *
-     * @return the role identifier/code
-     */
-    public String getRoleCode() {
-        return roleId;
-    }
 }

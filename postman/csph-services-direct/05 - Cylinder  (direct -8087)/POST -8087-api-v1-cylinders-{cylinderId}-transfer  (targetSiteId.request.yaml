@@ -1,0 +1,35 @@
+$kind: http-request
+name: POST :8087/api/v1/cylinders/{cylinderId}/transfer  (targetSiteId REQUIRED)
+description: |-
+  **cylinder-service on :8087**, no security headers - `CYLINDER_TRANSFER` is bypassed.
+
+  **`targetSiteId` is a REQUIRED body field** (`@NotBlank`). Note the contrast with the tour service''s
+  `assign-vehicle` two folders up, which wanted its target in the *query string* - two conventions for "required
+  target" in the same codebase, and the body form is the more common one.
+
+  A transfer rewrites `currentHolderOrganizationId` and `currentSiteId` in one call: it is a custody change, not an
+  append to a movement log, and it should emit an audit event.
+url: "{{cylinderService}}/api/v1/cylinders/{{cylinderId}}/transfer"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "targetSiteId": "{{siteIdDest}}",
+      "targetHolderOrganizationId": "{{marketerOrgId}}",
+      "fillStatus": "FULL",
+      "notes": "Direct-port transfer probe"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('new holding site', function () {
+          pm.expect(j.data.currentSiteId).to.eql(pm.collectionVariables.get('siteIdDest'));
+      });
+    language: text/javascript
+order: 4000

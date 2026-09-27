@@ -1,0 +1,43 @@
+$kind: http-request
+name: POST /roles/  (TRAILING SLASH - unique code -> roleId)
+description: |-
+  `CreateRoleRequest` requires `code` + `name`, and `Role.code` is `UNIQUE` - hence `{{uniq}}`.
+
+  **These roles live in the `roles` table (JPA `Role` entity), not the seeded `system_roles` enum table.** That is why
+  an arbitrary code like `ROLE-PM...` is accepted here even though the 8 seeded `system_role` names (SUPERADMIN, ADMIN,
+  SUPERVISOR, INTEGRATEUR, AGENT, MARKETEUR, TRANSPORTEUR, LIVREUR) are a closed Postgres enum on the *other* table.
+  Two role concepts, one API surface - worth knowing before you try to create a role named `SUPERADMIN`.
+
+  Overwrites `roleId`, so the three requests after this one operate on the new role.
+url: "{{gateway}}/api/v1/roles/"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "code": "ROLE-{{uniq}}",
+      "name": "Postman Role {{uniq}}",
+      "description": "Created by the csph-gateway Postman collection",
+      "scopeOrgType": "MKT",
+      "minTier": "T3",
+      "sortOrder": 900
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('roleId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('roleId', j.data.id);
+      });
+      pm.test('code round-trips', function () {
+          pm.expect(j.data.code).to.eql('ROLE-' + pm.collectionVariables.get('uniq'));
+      });
+    language: text/javascript
+order: 17000

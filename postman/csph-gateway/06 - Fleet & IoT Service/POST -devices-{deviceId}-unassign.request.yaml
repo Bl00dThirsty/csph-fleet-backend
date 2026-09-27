@@ -1,0 +1,29 @@
+$kind: http-request
+name: POST /devices/{deviceId}/unassign
+description: |-
+  Releases the device back to the pool. **No request body at all** - the server nulls both assignment columns itself,
+  so sending `{"assignedToPersonId": null}` is unnecessary and would be ignored anyway.
+
+  Unassigning is what makes a device re-assignable: the platform treats a device with a stale assignment as in use,
+  which is how a handheld goes missing from the fleet view.
+url: "{{gateway}}/api/v1/devices/{{deviceId}}/unassign"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('assignment cleared', function () {
+          const v = j.data.assignedToVehicleId;
+          pm.expect(v === null || v === undefined || v === '', 'vehicleId should be cleared').to.eql(true);
+      });
+    language: text/javascript
+order: 10000

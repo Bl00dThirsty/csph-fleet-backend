@@ -1,0 +1,9 @@
+$kind: collection
+description: |-
+  Three requests that **must** answer 401.
+
+  The gateway's `JwtAuthenticationFilter.onError` writes the reason as raw bytes - `Missing Authorization Header`,
+  `Invalid Authorization Header`, `Invalid JWT Token` - so these bodies are **plain text, not JSON**. Do not assert a
+  JSON envelope here. (`Authorization: ` with an empty token also yields 401 `Invalid JWT Token`, which is why this
+  folder passes even on a cold, never-logged-in collection.)
+order: 4000

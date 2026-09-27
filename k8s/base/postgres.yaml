@@ -1,0 +1,1335 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# The 9 Postgres databases, one StatefulSet each — one per bounded context, so
+# a schema change in fleet-device-service can never take auth down with it.
+#
+#   StatefulSet        database           in-cluster port   host port / nodePort
+#   -----------------  -----------------  ----------------  --------------------
+#   postgres-auth      gpl_auth_db        5432              5500 / 25500
+#   postgres-org       gpl_organization_db 5432             5501 / 25501
+#   postgres-user      gpl_user_db        5432              5502 / 25502
+#   postgres-audit     gpl_audit_db       5432              5503 / 25503
+#   postgres-notif     gpl_notification_db 5432             5504 / 25504
+#   postgres-tour      gpl_tour_db        5432              5505 / 25505
+#   postgres-fleet     gpl_fleet_db       5432              5506 / 25506
+#   postgres-cylinder  gpl_cylinder_db    5432              5507 / 25507
+#   postgres-subsidy   gpl_subsidy_db     5432              5508 / 25508
+#
+# THREE Services per database, because a Service has exactly one `type`:
+#   <name>-headless  clusterIP: None  -> StatefulSet serviceName, stable
+#                                        per-pod DNS (…-0.<name>-headless)
+#   <name>           ClusterIP        -> what the Spring configs dial:
+#                                        jdbc:postgresql://postgres-auth:5432/…
+#   <name>-nodeport  NodePort         -> host inspection via psql/DBeaver, on
+#                                        the fixed 25500-25508 nodePorts that
+#                                        k8s/kind-cluster.yaml maps to host
+#                                        ports 5500-5508 (5432/5433 are taken
+#                                        by a native Windows Postgres)
+#
+# The in-cluster Service is named exactly like the StatefulSet; the headless
+# Service therefore carries the -headless suffix instead. The Spring
+# application.yml files reference `postgres-<x>:5432`, so that name is the one
+# that must not change.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────
+# postgres-auth — gpl_auth_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-auth-headless
+  labels:
+    app.kubernetes.io/name: postgres-auth
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: postgres-auth
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-auth
+  labels:
+    app.kubernetes.io/name: postgres-auth
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres-auth
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-auth-nodeport
+  labels:
+    app.kubernetes.io/name: postgres-auth
+    app.kubernetes.io/component: database
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: postgres-auth
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30093
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-auth
+  labels:
+    app.kubernetes.io/name: postgres-auth
+    app.kubernetes.io/component: database
+spec:
+  serviceName: postgres-auth-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-auth
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-auth
+        app.kubernetes.io/component: database
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: POSTGRES_DB
+              value: gpl_auth_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_auth_db
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+            successThreshold: 1
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_auth_db
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: postgres-auth
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# postgres-org — gpl_organization_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-org-headless
+  labels:
+    app.kubernetes.io/name: postgres-org
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: postgres-org
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-org
+  labels:
+    app.kubernetes.io/name: postgres-org
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres-org
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-org-nodeport
+  labels:
+    app.kubernetes.io/name: postgres-org
+    app.kubernetes.io/component: database
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: postgres-org
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30094
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-org
+  labels:
+    app.kubernetes.io/name: postgres-org
+    app.kubernetes.io/component: database
+spec:
+  serviceName: postgres-org-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-org
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-org
+        app.kubernetes.io/component: database
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: POSTGRES_DB
+              value: gpl_organization_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_organization_db
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+            successThreshold: 1
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_organization_db
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: postgres-org
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# postgres-user — gpl_user_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-user-headless
+  labels:
+    app.kubernetes.io/name: postgres-user
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: postgres-user
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-user
+  labels:
+    app.kubernetes.io/name: postgres-user
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres-user
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-user-nodeport
+  labels:
+    app.kubernetes.io/name: postgres-user
+    app.kubernetes.io/component: database
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: postgres-user
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30095
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-user
+  labels:
+    app.kubernetes.io/name: postgres-user
+    app.kubernetes.io/component: database
+spec:
+  serviceName: postgres-user-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-user
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-user
+        app.kubernetes.io/component: database
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: POSTGRES_DB
+              value: gpl_user_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_user_db
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+            successThreshold: 1
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_user_db
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: postgres-user
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# postgres-audit — gpl_audit_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-audit-headless
+  labels:
+    app.kubernetes.io/name: postgres-audit
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: postgres-audit
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-audit
+  labels:
+    app.kubernetes.io/name: postgres-audit
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres-audit
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-audit-nodeport
+  labels:
+    app.kubernetes.io/name: postgres-audit
+    app.kubernetes.io/component: database
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: postgres-audit
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30096
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-audit
+  labels:
+    app.kubernetes.io/name: postgres-audit
+    app.kubernetes.io/component: database
+spec:
+  serviceName: postgres-audit-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-audit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-audit
+        app.kubernetes.io/component: database
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: POSTGRES_DB
+              value: gpl_audit_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_audit_db
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+            successThreshold: 1
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_audit_db
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: postgres-audit
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# postgres-notif — gpl_notification_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-notif-headless
+  labels:
+    app.kubernetes.io/name: postgres-notif
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: postgres-notif
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-notif
+  labels:
+    app.kubernetes.io/name: postgres-notif
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres-notif
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-notif-nodeport
+  labels:
+    app.kubernetes.io/name: postgres-notif
+    app.kubernetes.io/component: database
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: postgres-notif
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30097
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-notif
+  labels:
+    app.kubernetes.io/name: postgres-notif
+    app.kubernetes.io/component: database
+spec:
+  serviceName: postgres-notif-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-notif
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-notif
+        app.kubernetes.io/component: database
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: POSTGRES_DB
+              value: gpl_notification_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_notification_db
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+            successThreshold: 1
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_notification_db
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: postgres-notif
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# postgres-tour — gpl_tour_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-tour-headless
+  labels:
+    app.kubernetes.io/name: postgres-tour
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: postgres-tour
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-tour
+  labels:
+    app.kubernetes.io/name: postgres-tour
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres-tour
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-tour-nodeport
+  labels:
+    app.kubernetes.io/name: postgres-tour
+    app.kubernetes.io/component: database
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: postgres-tour
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30098
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-tour
+  labels:
+    app.kubernetes.io/name: postgres-tour
+    app.kubernetes.io/component: database
+spec:
+  serviceName: postgres-tour-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-tour
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-tour
+        app.kubernetes.io/component: database
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: POSTGRES_DB
+              value: gpl_tour_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_tour_db
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+            successThreshold: 1
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_tour_db
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: postgres-tour
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# postgres-fleet — gpl_fleet_db
+#
+# The only TimescaleDB instance: fleet-device-service writes vehicle-position
+# and telemetry time series. Same protocol and same credentials as the other
+# eight, so the Service layout is identical.
+#   * TS_TELEMETRY=off — no phone-home from inside the cluster.
+#   * /dev/shm as tmpfs — TimescaleDB needs more POSIX shared memory than the
+#     64Mi Docker default, otherwise parallel workers die with
+#     "could not resize shared memory segment".
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-fleet-headless
+  labels:
+    app.kubernetes.io/name: postgres-fleet
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: postgres-fleet
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-fleet
+  labels:
+    app.kubernetes.io/name: postgres-fleet
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres-fleet
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-fleet-nodeport
+  labels:
+    app.kubernetes.io/name: postgres-fleet
+    app.kubernetes.io/component: database
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: postgres-fleet
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30099
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-fleet
+  labels:
+    app.kubernetes.io/name: postgres-fleet
+    app.kubernetes.io/component: database
+spec:
+  serviceName: postgres-fleet-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-fleet
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-fleet
+        app.kubernetes.io/component: database
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: timescale/timescaledb-ha:pg16
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: POSTGRES_DB
+              value: gpl_fleet_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: TS_TELEMETRY
+              value: "off"
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_fleet_db
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+            successThreshold: 1
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_fleet_db
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: postgres-fleet
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# postgres-cylinder — gpl_cylinder_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-cylinder-headless
+  labels:
+    app.kubernetes.io/name: postgres-cylinder
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: postgres-cylinder
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-cylinder
+  labels:
+    app.kubernetes.io/name: postgres-cylinder
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres-cylinder
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-cylinder-nodeport
+  labels:
+    app.kubernetes.io/name: postgres-cylinder
+    app.kubernetes.io/component: database
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: postgres-cylinder
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30100
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-cylinder
+  labels:
+    app.kubernetes.io/name: postgres-cylinder
+    app.kubernetes.io/component: database
+spec:
+  serviceName: postgres-cylinder-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-cylinder
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-cylinder
+        app.kubernetes.io/component: database
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: POSTGRES_DB
+              value: gpl_cylinder_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_cylinder_db
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+            successThreshold: 1
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_cylinder_db
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: postgres-cylinder
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# postgres-subsidy — gpl_subsidy_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-subsidy-headless
+  labels:
+    app.kubernetes.io/name: postgres-subsidy
+    app.kubernetes.io/component: database
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: postgres-subsidy
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-subsidy
+  labels:
+    app.kubernetes.io/name: postgres-subsidy
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres-subsidy
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-subsidy-nodeport
+  labels:
+    app.kubernetes.io/name: postgres-subsidy
+    app.kubernetes.io/component: database
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: postgres-subsidy
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30101
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-subsidy
+  labels:
+    app.kubernetes.io/name: postgres-subsidy
+    app.kubernetes.io/component: database
+spec:
+  serviceName: postgres-subsidy-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-subsidy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-subsidy
+        app.kubernetes.io/component: database
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: POSTGRES_DB
+              value: gpl_subsidy_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_subsidy_db
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+            successThreshold: 1
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - gpl_subsidy_db
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: postgres-subsidy
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi

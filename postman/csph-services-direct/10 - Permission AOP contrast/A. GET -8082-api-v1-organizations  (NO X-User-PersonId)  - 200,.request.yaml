@@ -1,0 +1,43 @@
+$kind: http-request
+name: A. GET :8082/api/v1/organizations  (NO X-User-PersonId)  -> 200, checks SKIPPED
+description: |-
+  ## The demonstration, step 1 of 3
+
+  Same endpoint, same `@RequiresPermission("ORG_VIEW")`, **no security headers at all**.
+
+  `PermissionAspect.checkPermission` starts with:
+
+  ```java
+  if (!GplSecurityContext.isAuthenticated()) {
+      return joinPoint.proceed();   // "internal call, pass-through"
+  }
+  ```
+
+  `GplSecurityContextFilter` only calls `GplSecurityContext.set(...)` when `X-User-PersonId` is present and non-empty,
+  so with no header there is no context, `isAuthenticated()` is false, and the aspect proceeds. **200.**
+
+  This is exactly what an in-cluster `http://csph/gpl-organization-service/...` call does, and it is the reason this
+  collection exists.
+url: "{{orgService}}/api/v1/organizations?size=5"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  size: "5"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 - the @RequiresPermission(ORG_VIEW) check was SKIPPED', function () {
+          pm.expect(pm.response.code).to.eql(200);
+      });
+      pm.test('BARE PageResponse, as through the gateway', function () {
+          const d = pm.response.json();
+          pm.expect(d).to.not.have.property('success');
+          pm.expect(d).to.have.property('totalCount');
+      });
+      console.log('A. no X-User-PersonId            -> HTTP ' + pm.response.code + '  (check skipped)');
+    language: text/javascript
+order: 1000

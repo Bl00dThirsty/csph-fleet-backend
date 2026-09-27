@@ -1,0 +1,37 @@
+$kind: http-request
+name: POST :8088/api/v1/devices  (201, unique serialNumber)
+description: |-
+  **fleet-device-service on :8088**, no security headers - `fleet.devices.create` is bypassed.
+
+  `CreateDeviceRequest` requires `serialNumber` **and** `deviceType`; `devices.serial_number` is `VARCHAR(100) UNIQUE`.
+
+  The pairing of `batteryLevel` with the derived `batteryCritical` flag is how a low-battery handheld gets flagged
+  before it dies mid-tour. **201 Created**, like `/vehicles` and for the same reason.
+url: "{{fleetService}}/api/v1/devices"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "serialNumber": "DDEV-{{uniq}}",
+      "deviceType": "PDA",
+      "firmwareVersion": "3.2.1",
+      "batteryLevel": 88,
+      "batteryCritical": false,
+      "organizationId": "{{transporterOrgId}}",
+      "status": "AVAILABLE"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('201 Created', function () { pm.expect(pm.response.code).to.eql(201); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('deviceId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('deviceId', j.data.id);
+      });
+    language: text/javascript
+order: 5000

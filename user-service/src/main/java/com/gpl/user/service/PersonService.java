@@ -25,7 +25,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -315,7 +317,12 @@ public class PersonService {
             }).collect(Collectors.toList()));
         }
 
-        response.setRoles(roleAssignmentRepository.findActiveByPersonId(person.getPersonId()));
+        List<UserRoleAssignment> roleAssignments = roleAssignmentRepository.findActiveByPersonId(person.getPersonId());
+        for (UserRoleAssignment assignment : roleAssignments) {
+            roleRepository.findById(assignment.getRoleId())
+                    .ifPresent(role -> assignment.setRoleCode(role.getCode()));
+        }
+        response.setRoles(roleAssignments);
         response.setSites(siteAssignmentRepository.findByPersonIdAndIsActiveTrue(person.getPersonId()));
 
         response.setModificationsRef("/api/v1/persons/" + person.getId() + "/modifications");
@@ -324,9 +331,18 @@ public class PersonService {
         return response;
     }
 
+    /**
+     * Génère un identifiant personne unique.
+     *
+     * <p>Ne doit surtout pas dépendre d'un compteur en mémoire : celui-ci
+     * repartait de sa valeur initiale à chaque redémarrage du pod, si bien que
+     * la première personne créée après un redémarrage réattribuait un
+     * personId déjà pris et échouait sur l'index unique
+     * {@code idx_person_personid} (HTTP 409). Un UUID tronqué garantit
+     * l'unicité sans aucun état partagé, quel que soit le nombre de replicas.</p>
+     */
     private String generatePersonId() {
-        long seq = PERSON_SEQ.incrementAndGet();
-        char checkLetter = (char) ('A' + (seq % 26));
-        return seq + "-" + checkLetter;
+        return "P-" + UUID.randomUUID().toString().replace("-", "")
+                .substring(0, 10).toUpperCase(Locale.ROOT);
     }
 }

@@ -1,0 +1,47 @@
+$kind: http-request
+name: POST :8087/api/v1/scans  (capture scanEventId)
+description: |-
+  **cylinder-service on :8087**, no security headers - `SCAN_CREATE` reads `X-User-PersonId` with `required = false`.
+
+  `CreateScanEventRequest` requires only `rfidTagId`; the rest is the evidence bundle that makes a scan admissible.
+  `scan_events.checkpoint_id` is `NOT NULL`, so **folder `04` must have run** - that is the one ordering dependency
+  this collection has.
+
+  `pdaSyncId` makes ingestion idempotent when a handheld reconnects after a blackspot and replays its buffer, which is
+  the normal case in the field rather than an edge case.
+url: "{{cylinderService}}/api/v1/scans"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "checkpointId": "{{checkpointId}}",
+      "driverPersonId": "{{personId}}",
+      "rfidTagId": "{{rfidTagId}}",
+      "direction": "OUT",
+      "latitude": 4.0511,
+      "longitude": 9.7679,
+      "timestamp": "{{nowIso}}",
+      "meterReading": 1250.0,
+      "pdaSyncId": "PDA-DIR-{{uniq}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created, or 400 when checkpointId is empty', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 201, 400]);
+      });
+      const j = pm.response.json();
+      if (pm.response.code === 400) {
+          console.warn('400 - {{checkpointId}} is empty. Run folder 04 (POST :8086/api/v1/tours/.../checkpoints) first.');
+      } else {
+          pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+          pm.test('scanEventId captured (UUID)', function () {
+              pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+              pm.collectionVariables.set('scanEventId', j.data.id);
+          });
+      }
+    language: text/javascript
+order: 8000

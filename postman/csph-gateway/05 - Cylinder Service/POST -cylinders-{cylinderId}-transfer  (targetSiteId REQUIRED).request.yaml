@@ -1,0 +1,38 @@
+$kind: http-request
+name: POST /cylinders/{cylinderId}/transfer  (targetSiteId REQUIRED)
+description: |-
+  **`targetSiteId` is a REQUIRED body field** (`@NotBlank`) - this one is in the JSON, unlike the tour service''s
+  `assign-vehicle`, which wants a query parameter. Two different conventions for "required target" in the same
+  codebase; the request body is the more common one.
+
+  A transfer is a custody change, not a movement log entry: it rewrites `currentHolderOrganizationId` and
+  `currentSiteId` and should emit an audit event. `notes` is free text and is what a supervisor reads afterwards.
+url: "{{gateway}}/api/v1/cylinders/{{cylinderId}}/transfer"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "targetSiteId": "{{siteIdDest}}",
+      "targetHolderOrganizationId": "{{marketerOrgId}}",
+      "fillStatus": "FULL",
+      "notes": "Postman transfer probe"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('new holding site', function () {
+          pm.expect(j.data.currentSiteId).to.eql(pm.collectionVariables.get('siteIdDest'));
+      });
+      pm.test('new holder', function () {
+          pm.expect(j.data.currentHolderOrganizationId).to.eql(pm.collectionVariables.get('marketerOrgId'));
+      });
+    language: text/javascript
+order: 5000

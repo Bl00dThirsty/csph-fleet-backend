@@ -1,0 +1,47 @@
+$kind: http-request
+name: POST /cylinders  (unique serialNumber -> cylinderId)
+description: |-
+  `CreateCylinderRequest` requires only `serialNumber` (`@NotBlank`); the ownership and location fields are what make
+  it useful, so they are filled from the ids folder `02` captured.
+
+  `serialNumber` carries `{{uniq}}` because it is the bottle's identity in the field and collisions there are real
+  world events, not test artefacts.
+
+  `fillStatus` (`EMPTY` / `FULL` / ...) and `status` are independent axes: a bottle can be physically full and
+  administratively blocked.
+url: "{{gateway}}/api/v1/cylinders"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "serialNumber": "CYL-{{uniq}}",
+      "barcode": "BC-{{uniq}}",
+      "cylinderTypeId": "TYPE-6KG",
+      "ownerOrganizationId": "{{orgId}}",
+      "currentHolderOrganizationId": "{{orgId}}",
+      "currentSiteId": "{{siteId}}",
+      "fillStatus": "EMPTY",
+      "brand": "Antargaz",
+      "capacityKg": 6.0,
+      "status": "AVAILABLE"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('cylinderId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('cylinderId', j.data.id);
+      });
+      pm.test('serialNumber round-trips', function () {
+          pm.expect(j.data.serialNumber).to.eql('CYL-' + pm.collectionVariables.get('uniq'));
+      });
+    language: text/javascript
+order: 2000

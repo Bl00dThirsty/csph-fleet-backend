@@ -1,0 +1,37 @@
+$kind: http-request
+name: POST :8089/api/v1/declarations  (capture declarationId)
+description: |-
+  **subsidy-service on :8089**, no security headers. This service reads `X-User-Username` (not `X-User-PersonId`) with
+  `required = false`, so `createdBy` ends up null on a direct call.
+
+  `CreateDeclarationRequest` requires `periodStart` and `periodEnd` (`@NotNull`); `getEffectiveOrganizationId()` falls
+  back from `declaringOrganizationId` to `marketerOrganizationId`, so sending both is the explicit choice.
+
+  `declaredVolume` is what the marketer *claims* - the reconciliation below measures it against tracked volume.
+url: "{{subsidyService}}/api/v1/declarations"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "marketerOrganizationId": "{{marketerOrgId}}",
+      "declaringOrganizationId": "{{marketerOrgId}}",
+      "siteId": "{{siteId}}",
+      "periodStart": "{{periodStart}}",
+      "periodEnd": "{{periodEnd}}",
+      "declaredVolume": 12.0
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('declarationId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('declarationId', j.data.id);
+      });
+    language: text/javascript
+order: 2000

@@ -1,0 +1,12 @@
+$kind: collection
+name: 04 - Tour  (direct :8086)
+description: |-
+  tour-service on **8086**, i.e. `http://csph/gpl-tour-service` in-cluster.
+
+  No security headers anywhere in this folder - every tour-service method reads its identity header with
+  `required = false`, so the audit fields end up null on a direct call. That is a real, visible difference from the
+  gateway collection rather than a defect in either.
+
+  One cross-service request opens the folder: `GET :8088/api/v1/vehicles`, because `assign-vehicle` needs a
+  `vehicleId` and this collection does not create vehicles before this folder runs.
+order: 6000

@@ -1,0 +1,27 @@
+$kind: http-request
+name: POST /api/v1/auth/logout
+description: |-
+  **Run this last in the folder, by design.** `AuthService.logout` does `refreshTokenRepository.deleteByPersonId(personId)`
+  - it wipes *every* refresh token for the person, not just this one.
+
+  The access token keeps working until it expires (the gateway never calls back into auth-service), so folders
+  `02`-`09` are unaffected. But `POST /api/v1/auth/refresh` will fail afterwards - re-run `01 - Auth` from the top for
+  a clean session.
+url: "{{gateway}}/api/v1/auth/logout"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('message mentions logout', function () { pm.expect(String(j.message).toLowerCase()).to.include('logout'); });
+    language: text/javascript
+order: 6000

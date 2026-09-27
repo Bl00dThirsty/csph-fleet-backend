@@ -1,0 +1,33 @@
+$kind: http-request
+name: POST /checkpoints/{checkpointId}/validate
+description: |-
+  Marks the stop as reached / delivered. Takes no body and no parameters - the driver''s PDA hits exactly this route on
+  arrival.
+
+  Penalised by the reconciliation engine if the actual quantity delivered is short, which is what the declaration
+  workflow in folder `07` eventually measures.
+url: "{{gateway}}/api/v1/checkpoints/{{checkpointId}}/validate"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('validate rejected by the stop state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 13000

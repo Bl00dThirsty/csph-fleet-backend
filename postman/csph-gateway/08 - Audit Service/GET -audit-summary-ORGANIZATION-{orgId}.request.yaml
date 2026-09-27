@@ -1,0 +1,30 @@
+$kind: http-request
+name: GET /audit/summary/ORGANIZATION/{orgId}
+description: |-
+  Per-entity audit summary - counts by action and by actor for one entity.
+
+  **The path has two variable segments** (`{entityType}/{entityId}`), and `entityType` is the **entity''s** type, not
+  the API module: `ORGANIZATION`, `SITE`, `PERSON`, `CYLINDER`, `RFID_TAG`, `TOUR`, `VEHICLE`, `DECLARATION` ... The
+  module (`AUTH`, `TOUR`, `FLEET`) is a different concept and a different field, which is an easy and silent
+  mistake - a wrong `entityType` returns 404, not an empty summary.
+url: "{{gateway}}/api/v1/audit/summary/ORGANIZATION/{{orgId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('summary for the org we created', function () {
+          pm.expect(j.data).to.be.an('object');
+      });
+      console.log('audit summary:', JSON.stringify(j.data).slice(0, 300));
+    language: text/javascript
+order: 3000

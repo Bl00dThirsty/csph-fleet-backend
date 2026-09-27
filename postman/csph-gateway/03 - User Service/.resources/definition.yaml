@@ -1,0 +1,24 @@
+$kind: collection
+description: |-
+  user-service on :8083, reached through `{{gateway}}/api/v1`.
+
+  **The trailing slash is mandatory** on `GET /persons/`, `/users/`, `/roles/`, `/groups/`, `/permissions/` - those
+  controllers are mapped `@GetMapping("/")`. Without the slash: a 404, not a redirect. With the slash: correct.
+
+  **Capture order matters inside this folder.** `POST /persons/{id}/roles` needs a `roleId` before `POST /roles/`
+  runs, so the folder opens with a bootstrap `GET /roles/`; `POST /roles/` then overwrites `roleId` with the role it
+  creates, which is what the three requests after it use.
+
+  **Response shapes are not uniform here:** `GET /persons/` is a **bare** `PageResponse`, while `/roles/`, `/groups/`
+  and `/permissions/` are **enveloped arrays** (not paged).
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      if (!pm.collectionVariables.get('accessToken')) {
+          console.warn('No accessToken yet - run 01 - Auth > POST /api/v1/auth/login first. Expect 401s.');
+      }
+      if (!pm.collectionVariables.get('siteId')) {
+          console.warn('siteId is empty - run folder 02 (GET /sites) first. Site assignments need it.');
+      }
+    language: text/javascript
+order: 6000

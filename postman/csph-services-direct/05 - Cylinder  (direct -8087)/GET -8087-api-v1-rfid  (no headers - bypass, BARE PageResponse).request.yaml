@@ -1,0 +1,34 @@
+$kind: http-request
+name: GET :8087/api/v1/rfid  (no headers - bypass, BARE PageResponse)
+description: |-
+  **cylinder-service on :8087**, no security headers, so `RFID_VIEW` is bypassed. **Bare `PageResponse`.**
+
+  `current_site_id` and `current_client_site_id` are mutually exclusive by check constraint - a tag is at an
+  operational site or a client site, never both. That is the same constraint the checkpoint body in folder `04`
+  enforces.
+url: "{{cylinderService}}/api/v1/rfid?size=20"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  size: "20"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const d = pm.response.json();
+      pm.test('BARE PageResponse - no success envelope', function () {
+          pm.expect(d).to.be.an('object');
+          pm.expect(d).to.not.have.property('success');
+      });
+      pm.test('page metadata present', function () {
+          pm.expect(d).to.have.property('totalCount');
+          pm.expect(d).to.have.property('pageNumber');
+      });
+      const items = d.content || d.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+    language: text/javascript
+order: 5000

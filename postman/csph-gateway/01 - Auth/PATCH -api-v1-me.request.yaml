@@ -1,0 +1,29 @@
+$kind: http-request
+name: PATCH /api/v1/me
+description: |-
+  `UpdateMeRequest` accepts only `email`, and it is `@Email` validated - so a malformed address is a 400.
+
+  **Side effect, stated plainly:** this really overwrites `auth_users.email` for the logged-in user. The value is
+  unique per run (`{{uniq}}`) so re-runs never 409, but the seeded `superadmin.cspHq` address stays changed to
+  whatever ran last. Logins are by username, so nothing else breaks.
+url: "{{gateway}}/api/v1/me"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "email": "postman-{{uniq}}@cspHq.cm"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('email echoed back', function () { pm.expect(j.data.email).to.eql('postman-' + pm.collectionVariables.get('uniq') + '@cspHq.cm'); });
+    language: text/javascript
+order: 5000

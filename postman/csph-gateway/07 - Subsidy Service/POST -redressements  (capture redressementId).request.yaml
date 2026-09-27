@@ -1,0 +1,38 @@
+$kind: http-request
+name: POST /redressements  (capture redressementId)
+description: |-
+  `CreateRedressementRequest` requires `reconciliationId` (`@NotBlank`) and `dueDate` (`@NotNull`); `amount` and
+  `transactionRef` are optional.
+
+  `amount` is hand-set to 937.5 - exactly 1.5 t of overstatement at the 625 per-tonne `subsidyRate` declared above.
+  Deriving it that way makes the number checkable by hand, which is the property that matters in a subsidy dispute.
+
+  `dueDate` comes from the collection pre-request (30 days out), so the penalty is never already overdue.
+url: "{{gateway}}/api/v1/redressements"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "reconciliationId": "{{reconciliationId}}",
+      "amount": 937.5,
+      "dueDate": "{{dueDate}}",
+      "transactionRef": "TX-{{uniq}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('redressementId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('redressementId', j.data.id);
+      });
+      pm.test('amount round-trips', function () { pm.expect(j.data.amount).to.eql(937.5); });
+    language: text/javascript
+order: 15000

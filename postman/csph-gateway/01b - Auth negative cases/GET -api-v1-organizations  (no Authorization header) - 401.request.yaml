@@ -1,0 +1,30 @@
+$kind: http-request
+name: GET /api/v1/organizations  (no Authorization header) -> 401
+description: |-
+  `X-User-PersonId` is present but there is no `Authorization` header, so `JwtAuthenticationFilter` short-circuits
+  before the route is even resolved -> 401 `Missing Authorization Header`.
+
+  The downstream service is never reached. That is the point: the gateway is the only authentication boundary in the
+  platform - which is exactly what the companion `csph-services-direct` collection demonstrates from the other side.
+url: "{{gateway}}/api/v1/organizations"
+method: GET
+headers:
+  Content-Type: application/json
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('401 Unauthorized', function () { pm.expect(pm.response.code).to.eql(401); });
+      pm.test('body is PLAIN TEXT, not a JSON envelope', function () {
+          const t = pm.response.text();
+          pm.expect(t).to.be.a('string');
+          pm.expect(t.trim().length).to.be.above(0);
+          pm.expect(t.trim().charAt(0), 'the gateway writes raw bytes, not JSON').to.not.eql('{');
+      });pm.test('reason is Missing Authorization Header', function () {
+          pm.expect(pm.response.text()).to.include('Missing Authorization Header');
+      });
+    language: text/javascript
+order: 1000

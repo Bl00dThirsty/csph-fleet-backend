@@ -1,0 +1,45 @@
+$kind: http-request
+name: POST :8083/api/v1/persons/  (TRAILING SLASH, no headers needed)
+description: |-
+  **user-service on :8083**, with **no security headers**.
+
+  `createPerson` declares `@RequestHeader(value = "X-User-PersonId", required = false)` - optional, unlike
+  organization-service''s writes. So the bypass applies cleanly here and the controller substitutes `"SYSTEM"` for the
+  audit field. That asymmetry between services is exactly what the direct-port collection makes visible.
+
+  `email` carries `{{uniq}}`; returns **200, not 201** (the handler returns `ApiResponse` directly).
+url: "{{userService}}/api/v1/persons/"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "firstName": "Postman",
+      "lastName": "Direct {{uniq}}",
+      "email": "direct-person-{{uniq}}@cspHq.cm",
+      "organizationId": "{{orgId}}",
+      "orgId": "{{orgId}}",
+      "primarySiteId": "{{siteId}}",
+      "title": "Direct-port QA",
+      "jobCode": "QA-DIR-001",
+      "primaryPhone": "+237699444444",
+      "city": "Douala"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('personIdNew captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('personIdNew', j.data.id);
+      });
+      pm.test('personIdLogin captured (business key)', function () {
+          pm.expect(j.data.personId).to.be.a('string');
+          pm.collectionVariables.set('personIdLogin', j.data.personId);
+      });
+    language: text/javascript
+order: 3000

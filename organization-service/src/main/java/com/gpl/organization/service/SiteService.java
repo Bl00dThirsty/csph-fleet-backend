@@ -1,5 +1,6 @@
 package com.gpl.organization.service;
 
+import com.gpl.common.exception.DuplicateResourceException;
 import com.gpl.common.dto.PageResponse;
 import com.gpl.organization.dto.*;
 import com.gpl.organization.model.Organization;
@@ -25,7 +26,7 @@ public class SiteService {
     @Transactional
     public SiteResponse createSite(CreateSiteRequest request, String createdBy) {
         if (siteRepository.existsByCode(request.getCode())) {
-            throw new RuntimeException("Site code already exists");
+            throw new DuplicateResourceException("Site code already exists");
         }
 
         Organization org = organizationRepository.findById(request.getOrganizationId())

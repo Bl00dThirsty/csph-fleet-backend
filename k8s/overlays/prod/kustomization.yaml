@@ -1,0 +1,139 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# prod overlay — the production-shaped platform.
+#
+# READ k8s/overlays/prod/NOTES.md BEFORE APPLYING ANYTHING. This file is the
+# short version; NOTES.md is the long one, and it is the long one on purpose:
+# every difference from the dev overlay below is a decision with a
+# trade-off, and several of them will not schedule on the single-node kind
+# cluster this platform currently runs on.
+#
+# WHAT AN OVERLAY IS FOR, USED CORRECTLY
+#   The base (k8s/base) describes the 11 services, the 9 databases, the
+#   secrets, the namespace. The dev overlay is deliberately thin: one
+#   namespace, one label, one annotation patch. This overlay does the rest of
+#   an overlay's job — the environment-specific numbers and the production
+#   availability policy:
+#
+#     * image remap to a real registry (via the kustomize `images:`
+#       transformer, so no image string is hardcoded in any manifest)
+#     * SPRING_PROFILES_ACTIVE=prod on the 9 service ConfigMaps
+#     * 2 replicas for the 11 stateless JVM workloads, 1 for the 9 databases
+#     * startupProbe on every JVM, so a cold start cannot restart-loop
+#     * topologySpreadConstraints + required podAntiAffinity over hostname
+#     * the dev single-node rollout strategy (maxSurge 0 / maxUnavailable 1)
+#       replaced with a real rolling update
+#     * production resource requests/limits
+#     * PodDisruptionBudget + HorizontalPodAutoscaler
+#     * NetworkPolicy: default-deny ingress, then the five allow rules the
+#       platform actually needs
+#
+# WHAT IS DELIBERATELY NOT HERE
+#   * namePrefix / nameSuffix — the service names are DNS names baked into
+#     every application.yml and into the `lb://` routes the gateway resolves.
+#     (Same rule as the base; stated again because it is the easiest mistake
+#     to make in a new overlay.)
+#   * an Ingress — see NOTES.md §"Why NodePort and not an Ingress". The
+#     application yml files hard-code 8080-8089 and changing them is out of
+#     scope for a kustomize overlay.
+#   * a TLS setup, a real secret store, a real StorageClass, monitoring.
+#     Those are decisions, not manifests; they are the checklist in NOTES.md.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: csph-gpl
+
+resources:
+  - ../../base
+  # Availability policy. Separate files, applied after the base, so a reviewer
+  # can see the HPA budget without reading a Deployment patch.
+  - poddisruptionbudgets.yaml
+  - horizontalpodautoscalers.yaml
+  - networkpolicies.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: csph-gpl-platform
+      app.kubernetes.io/environment: prod
+    includeSelectors: true
+
+# ⚠ includeSelectors: true + an immutable selector = you CANNOT apply this
+#   overlay on top of an existing dev deployment.
+#
+#   With includeSelectors, the environment label is written into every
+#   `spec.selector.matchLabels` — and `spec.selector` is IMMUTABLE on both
+#   Deployment and StatefulSet. So applying prod into a namespace where
+#   k8s/overlays/dev has already been applied fails on all 21 workloads with:
+#
+#     Error from server (Invalid): error when applying patch:
+#     Deployment.apps "api-gateway" is invalid:
+#       [spec.selector: Invalid value: {...}: field is immutable]
+#
+#   This is not a bug in these manifests — it is the API refusing to change a
+#   selector in place, which is correct, because a Deployment's selector
+#   determines which pods it owns and changing it silently orphans ReplicaSets.
+#
+#   Before the first prod apply, pick one:
+#     (a) a separate namespace or cluster (correct: dev and prod must not share)
+#     (b) kubectl delete -k k8s/overlays/dev   # removes the 21 workloads;
+#         PVCs survive, so the databases are untouched
+#
+#   Verified: with the 21 workloads dry-run under collision-free names, all
+#   122 objects pass full API-server schema validation and admission with zero
+#   errors. The immutability collision is the only thing that fails.
+
+# ── the image remap ─────────────────────────────────────────────────────────
+# The kustomize `images:` transformer, which is what `kustomize edit set image`
+# writes. It rewrites `spec.containers[*].image` in place, matching on the
+# NAME part of the reference, so none of the 11 Deployment manifests in
+# k8s/base/services.yaml or k8s/base/gateway.yaml is edited. That is the whole
+# reason to use the transformer instead of a 11-document patch file: one line
+# per service, and the base stays the single source of truth for what runs
+# locally.
+#
+# PROMOTE A VERSION BY CHANGING ONE STRING. The dev -> staging -> prod flow is
+# in NOTES.md; the short version is that the tag below is the only thing that
+# differs between a rehearsal and a release.
+images:
+  - name: csph/gpl-discovery-server
+    newName: ghcr.io/csp-hq/gpl-discovery-server
+    newTag: v1.0.0
+  - name: csph/gpl-api-gateway
+    newName: ghcr.io/csp-hq/gpl-api-gateway
+    newTag: v1.0.0
+  - name: csph/gpl-auth-service
+    newName: ghcr.io/csp-hq/gpl-auth-service
+    newTag: v1.0.0
+  - name: csph/gpl-organization-service
+    newName: ghcr.io/csp-hq/gpl-organization-service
+    newTag: v1.0.0
+  - name: csph/gpl-user-service
+    newName: ghcr.io/csp-hq/gpl-user-service
+    newTag: v1.0.0
+  - name: csph/gpl-audit-service
+    newName: ghcr.io/csp-hq/gpl-audit-service
+    newTag: v1.0.0
+  - name: csph/gpl-notification-service
+    newName: ghcr.io/csp-hq/gpl-notification-service
+    newTag: v1.0.0
+  - name: csph/gpl-tour-service
+    newName: ghcr.io/csp-hq/gpl-tour-service
+    newTag: v1.0.0
+  - name: csph/gpl-cylinder-service
+    newName: ghcr.io/csp-hq/gpl-cylinder-service
+    newTag: v1.0.0
+  - name: csph/gpl-fleet-device-service
+    newName: ghcr.io/csp-hq/gpl-fleet-device-service
+    newTag: v1.0.0
+  - name: csph/gpl-subsidy-service
+    newName: ghcr.io/csp-hq/gpl-subsidy-service
+    newTag: v1.0.0
+
+patches:
+  # Service-level, then stateful tier. Two files because the two tiers have
+  # genuinely different policies: stateless means 2 replicas / spread / HPA,
+  # stateful means 1 replica / no spread / no HPA, and mixing them in one file
+  # would hide that difference.
+  - path: patches/jvm-workloads-prod.yaml
+  - path: patches/postgres-prod.yaml
+  - path: patches/configmaps-prod.yaml

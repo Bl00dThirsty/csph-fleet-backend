@@ -1,0 +1,32 @@
+$kind: http-request
+name: POST /contracts/{contractId}/terminate
+description: |-
+  Terminates the contract - a business state change, not a delete. The row survives with an end date; tours already
+  dispatched under it are unaffected, and future dispatch is blocked.
+
+  No body, no parameters.
+url: "{{gateway}}/api/v1/contracts/{{contractId}}/terminate"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('terminate rejected by the contract state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 23000

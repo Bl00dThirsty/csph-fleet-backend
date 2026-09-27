@@ -1,0 +1,56 @@
+$kind: http-request
+name: GET /persons/  (TRAILING SLASH - BARE PageResponse)
+description: |-
+  **The trailing slash is required.** `PersonController` is mapped
+  `@RequestMapping({"/api/v1/persons", "/api/v1/users"})` with `@GetMapping("/")` - `/api/v1/persons` without the slash
+  is a plain 404, not a redirect.
+
+  Returns a **bare** `PageResponse<PersonSummaryResponse>` - no `success` envelope.
+
+  ### Two identifiers, one name
+
+  This request resolves the logged-in user deterministically: it looks for the row whose **`personId`** equals the
+  `personId` variable (a *business* key, `superadmin.cspHq`) and stores that row's **`id`** (a UUID) into
+  `personIdNew` - because every `/persons/{id}/...` path variable in this folder expects the UUID. It also publishes
+  the business key as `personIdLogin`.
+
+  They are separate columns. `AuthDataInitializer` happens to seed them equal (`personId = username`), which is why
+  the distinction is easy to miss until a request 404s.
+url: "{{gateway}}/api/v1/persons/?size=100"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  size: "100"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const d = pm.response.json();
+      pm.test('BARE PageResponse - no success envelope', function () {
+          pm.expect(d).to.be.an('object');
+          pm.expect(d).to.not.have.property('success');
+      });
+      pm.test('page metadata present', function () {
+          pm.expect(d).to.have.property('totalCount');
+          pm.expect(d).to.have.property('pageNumber');
+      });
+      const items = d.content || d.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+      pm.test('at least one person', function () { pm.expect(items.length).to.be.above(0); });
+      const want = pm.collectionVariables.get('personId');
+      const me = items.find(function (p) { return p.personId === want; }) || items[0];
+      pm.test('resolved a person', function () { pm.expect(me).to.be.an('object'); });
+      pm.test('has a UUID primary key', function () {
+          pm.expect(me.id).to.match(/^[0-9a-f-]{36}$/i);
+      });
+      pm.collectionVariables.set('personIdNew', me.id);
+      pm.collectionVariables.set('personIdLogin', me.personId);
+      console.log('personIdNew (UUID) = ' + me.id + '   personIdLogin (key) = ' + me.personId);
+    language: text/javascript
+order: 2000

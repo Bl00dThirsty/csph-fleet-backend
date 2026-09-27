@@ -1,0 +1,31 @@
+$kind: http-request
+name: POST /tours/{tourId}/assign-driver?driverId=&driverPersonId=
+description: |-
+  Both query parameters are **optional** here (`@RequestParam(required = false)`) - unlike `assign-vehicle`, whose
+  `vehicleId` is mandatory. Passing neither is accepted and simply leaves the tour unassigned.
+
+  `driverPersonId` is the business key of the driver, whereas `driverId` is a users-table id - they are different
+  identifiers for the same human, and the platform uses `driverPersonId` for the GPL person linkage. This matters when
+  folders `05` and `07` filter scan events by `driverPersonId`.
+url: "{{gateway}}/api/v1/tours/{{tourId}}/assign-driver?driverPersonId={{personId}}"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  driverPersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('driver recorded', function () {
+          pm.expect(j.data.driverPersonId).to.eql(pm.collectionVariables.get('personId'));
+      });
+    language: text/javascript
+order: 6000

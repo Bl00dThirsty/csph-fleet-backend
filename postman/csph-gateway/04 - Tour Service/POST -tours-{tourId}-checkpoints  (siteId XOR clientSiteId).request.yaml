@@ -1,0 +1,40 @@
+$kind: http-request
+name: POST /tours/{tourId}/checkpoints  (siteId XOR clientSiteId)
+description: |-
+  Two database constraints shape this body:
+
+  * `chk_checkpoint_exclusive` - exactly one of `siteId` / `clientSiteId` must be set. Sending both, or neither, is
+    rejected by the service.
+  * `UNIQUE (tournee_id, sequence)` â€” one stop per position per tour. Since the tour is created fresh in this run,
+    `sequence: 1` is always free.
+
+  `sequence` is `@Min(1)`, and `tourId` is injected from the path, so it must **not** appear in the body.
+
+  Overwrites `checkpointId`, which folder `05` reuses as the `checkpointId` on a scan event.
+url: "{{gateway}}/api/v1/tours/{{tourId}}/checkpoints"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "siteId": "{{siteId}}",
+      "sequence": 1,
+      "expectedArrival": "{{periodEnd}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('checkpointId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('checkpointId', j.data.id);
+      });
+      pm.test('stop starts PENDING', function () { pm.expect(j.data.status).to.eql('PENDING'); });
+    language: text/javascript
+order: 10000

@@ -1,0 +1,37 @@
+$kind: http-request
+name: POST :8087/api/v1/cylinders  (no headers needed)
+description: |-
+  **cylinder-service on :8087**, no security headers - `createCylinder` reads `X-User-PersonId` with `required = false`.
+
+  `CreateCylinderRequest` requires only `serialNumber`; the ownership and location fields are what make the record
+  useful. `serialNumber` carries `{{uniq}}` because it is the bottle''s field identity.
+url: "{{cylinderService}}/api/v1/cylinders"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "serialNumber": "DIR-CYL-{{uniq}}",
+      "barcode": "DIR-BC-{{uniq}}",
+      "cylinderTypeId": "TYPE-6KG",
+      "ownerOrganizationId": "{{orgId}}",
+      "currentSiteId": "{{siteId}}",
+      "fillStatus": "EMPTY",
+      "brand": "Antargaz",
+      "capacityKg": 6.0,
+      "status": "AVAILABLE"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('cylinderId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('cylinderId', j.data.id);
+      });
+    language: text/javascript
+order: 2000

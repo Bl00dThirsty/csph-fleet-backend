@@ -1,0 +1,43 @@
+$kind: http-request
+name: POST /tours  (unique tourCode -> tourId)
+description: |-
+  `CreateTourDto` requires `tourCode`, `marketerOrganizationId`, `executionMode`, `type`, and `requestedQuantity`
+  (`@NotNull @Positive` - zero or negative is a 400). `tourCode` carries `{{uniq}}` for re-runnability.
+
+  * `executionMode` - `INTERNAL` or `EXTERNAL` (`TourExecutionMode`). `INTERNAL` adds a database constraint that a
+    transporter must be assigned, so `EXTERNAL` is used here.
+  * `type` - the load being carried; `VRAC` is the bulk tanker variant (`VehicleTypeEnum` also has
+    `BOUTEILLES50KG`).
+  * `marketerOrganizationId` / `transporterOrganizationId` - captured by the org bootstrap in folder `02`.
+
+  Overwrites `tourId`; the last request in this folder deletes it.
+url: "{{gateway}}/api/v1/tours"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "tourCode": "TOUR-{{uniq}}",
+      "marketerOrganizationId": "{{marketerOrgId}}",
+      "executionMode": "EXTERNAL",
+      "type": "VRAC",
+      "requestedQuantity": 12.0,
+      "transporterOrganizationId": "{{transporterOrgId}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('tourId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('tourId', j.data.id);
+      });
+      pm.test('starts in DRAFT', function () { pm.expect(j.data.status).to.eql('DRAFT'); });
+    language: text/javascript
+order: 3000

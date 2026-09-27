@@ -1,0 +1,24 @@
+$kind: http-request
+name: GET /declarations/{declarationId}
+description: |-
+  Single declaration, enveloped. The natural place to watch `status` and `statusDate` as the folder walks the
+  lifecycle.
+url: "{{gateway}}/api/v1/declarations/{{declarationId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('declarationId')); });
+      console.log('declaration status:', j.data.status, '| declaredVolume:', j.data.declaredVolume);
+    language: text/javascript
+order: 3000

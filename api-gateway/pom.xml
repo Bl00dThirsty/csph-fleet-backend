@@ -24,6 +24,21 @@
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
 
+        <!--
+            Actuator is what makes /actuator/health exist on the gateway. Neither
+            spring-cloud-starter-gateway nor
+            spring-cloud-starter-netflix-eureka-client pulls it in transitively,
+            so without this the readiness/liveness endpoints simply do not exist
+            and `GET /actuator/health` answers 404 — which reads as "the gateway
+            is broken" when in fact nothing is wrong. discovery-server already
+            declares it; the nine application services deliberately do not (they
+            probe on tcpSocket instead, see k8s/base/services.yaml).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>

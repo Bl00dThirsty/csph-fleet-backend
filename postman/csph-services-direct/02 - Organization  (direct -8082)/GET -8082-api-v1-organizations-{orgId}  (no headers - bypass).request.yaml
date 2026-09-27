@@ -1,0 +1,26 @@
+$kind: http-request
+name: GET :8082/api/v1/organizations/{orgId}  (no headers - bypass)
+description: |-
+  **organization-service on :8082**, no security headers, so `ORG_VIEW` is bypassed.
+
+  `{orgId}` is the UUID primary key captured above - not the business `code`.
+url: "{{orgService}}/api/v1/organizations/{{orgId}}"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('orgId')); });
+      pm.test('code and name present', function () {
+          pm.expect(j.data.code).to.be.a('string');
+          pm.expect(j.data.name).to.be.a('string');
+      });
+    language: text/javascript
+order: 2000

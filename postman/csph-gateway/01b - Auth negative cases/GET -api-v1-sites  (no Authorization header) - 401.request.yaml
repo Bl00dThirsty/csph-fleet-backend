@@ -1,0 +1,24 @@
+$kind: http-request
+name: GET /api/v1/sites  (no Authorization header) -> 401
+description: |-
+  Same guard, different route: `GatewayConfig` attaches the JWT filter to the `organization-service-sites` route
+  (`/api/v1/sites/**`) as well as to auth-service. Proves the filter is wired per route, not globally once.
+url: "{{gateway}}/api/v1/sites"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('401 Unauthorized', function () { pm.expect(pm.response.code).to.eql(401); });
+      pm.test('body is PLAIN TEXT, not a JSON envelope', function () {
+          const t = pm.response.text();
+          pm.expect(t).to.be.a('string');
+          pm.expect(t.trim().length).to.be.above(0);
+          pm.expect(t.trim().charAt(0), 'the gateway writes raw bytes, not JSON').to.not.eql('{');
+      });
+    language: text/javascript
+order: 3000

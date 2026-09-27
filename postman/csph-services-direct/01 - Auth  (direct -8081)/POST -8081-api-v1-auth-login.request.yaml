@@ -1,0 +1,48 @@
+$kind: http-request
+name: POST :8081/api/v1/auth/login
+description: |-
+  **auth-service on :8081**, hit directly. In Kubernetes this is `http://csph/gpl-auth-service/api/v1/auth/login`.
+
+  No `Authorization` header is needed: `auth-service` is the one service with a Spring Security filter chain, and
+  `SecurityConfig` marks `/api/v1/auth/**` `permitAll()`. Every other service has no security chain at all.
+
+  `ipAddress` and `deviceInfo` are sent here for the same reason as in the gateway collection - the `refresh_tokens`
+  row written by this call is shared with the gateway call, and a short `ip_address` overflows its column on the next
+  login. Keep the values realistic.
+
+  The tokens returned are **not** stored: with no gateway there is nothing to consume them, and this collection's whole
+  premise is not needing one. The test still decodes the JWT so you can see the claims.
+url: "{{authService}}/api/v1/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "{{username}}",
+      "password": "{{password}}",
+      "deviceInfo": "Postman-direct",
+      "ipAddress": "127.0.0.1"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('login 200', function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('accessToken present', function () { pm.expect(j.data.accessToken).to.be.a('string'); });
+      const claims = (function () {
+          try {
+              let p = j.data.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+              p = p + '='.repeat((4 - (p.length % 4)) % 4);
+              return JSON.parse(atob(p));
+          } catch (e) { return {}; }
+      })();
+      pm.test('JWT carries subject + permissions claim', function () {
+          pm.expect(claims.sub, 'JWT sub').to.be.a('string');
+          pm.expect(claims).to.have.property('permissions');
+      });
+      console.log('JWT sub=' + claims.sub + ' roles=' + JSON.stringify(claims.roles) + ' perms=' + ((claims.permissions || []).length));
+    language: text/javascript
+order: 1000

@@ -1,0 +1,38 @@
+$kind: http-request
+name: GET /telemetry/vehicles/{vehicleId}?start=&end=  (BARE array, no envelope)
+description: |-
+  The trajectory between two instants - what a route replay or a geofence check consumes.
+
+  **Also bare: a bare JSON array**, not an envelope and not a `PageResponse`. Both `start` and `end` are optional and
+  ISO-8601 (`@DateTimeFormat(iso = DATE_TIME)`); omitting them returns everything stored, which on a long-lived
+  tracker is a lot of rows. The values here come from the collection pre-request (`periodStart` = 30 days ago,
+  `periodEnd` = now), so the window is wide enough to catch the telemetry point just ingested.
+
+  Unlike the single-position route, this one has **no** `@RequiresPermission`, so it answers without the permission
+  headers the gateway supplies.
+url: "{{gateway}}/api/v1/telemetry/vehicles/{{vehicleId}}?start={{periodStart}}&end={{periodEnd}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  start: "{{periodStart}}"
+  end: "{{periodEnd}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const arr = pm.response.json();
+      pm.test('BARE array - not enveloped, not paged', function () {
+          pm.expect(arr).to.be.an('array');
+      });
+      pm.test('no success envelope', function () {
+          pm.expect(Array.isArray(arr) ? true : arr.success).to.not.eql(true);
+      });
+      console.log('trajectory points in window:', arr.length);
+    language: text/javascript
+order: 13000

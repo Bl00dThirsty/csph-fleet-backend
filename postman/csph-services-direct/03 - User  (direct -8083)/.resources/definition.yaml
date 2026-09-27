@@ -1,0 +1,12 @@
+$kind: collection
+name: 03 - User  (direct :8083)
+description: |-
+  user-service on **8083**, i.e. `http://csph/gpl-user-service` in-cluster.
+
+  No security headers anywhere in this folder - every method declares its `X-User-PersonId` with `required = false`, so
+  the audit field falls back to `"SYSTEM"` and the permission aspect is bypassed throughout. Contrast with folder `02`,
+  where organization-service''s writes make the header mandatory.
+
+  **Trailing slash required** on `/persons/` and `/roles/`. `/persons/` is a bare `PageResponse`; `/roles/` and
+  `/groups/` are enveloped arrays.
+order: 5000

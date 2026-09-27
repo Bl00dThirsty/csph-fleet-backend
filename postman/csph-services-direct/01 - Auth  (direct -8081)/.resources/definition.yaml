@@ -1,0 +1,12 @@
+$kind: collection
+name: 01 - Auth  (direct :8081)
+description: |-
+  auth-service on **8081**, i.e. `http://csph/gpl-auth-service` in-cluster.
+
+  auth-service is the only service with a Spring Security filter chain, and it permits `/api/v1/auth/**` and
+  `/api/v1/me/**` outright - so no JWT is needed for anything in this folder.
+
+  Note that `/me` and `/me/permissions` return **empty** role and permission arrays here even for a superadmin: they
+  read the `X-User-Roles` / `X-User-Permissions` headers, and on a direct call nothing populates those headers. Same
+  requests through the gateway return the real thing.
+order: 3000

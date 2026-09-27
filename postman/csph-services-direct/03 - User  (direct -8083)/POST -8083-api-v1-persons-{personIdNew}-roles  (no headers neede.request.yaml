@@ -1,0 +1,41 @@
+$kind: http-request
+name: POST :8083/api/v1/persons/{personIdNew}/roles  (no headers needed)
+description: |-
+  **user-service on :8083**, no security headers - `ROLE_UPDATE` is bypassed. The header is
+  `required = false` here, so the audit field falls back to `"SYSTEM"`.
+
+  `AssignRoleRequest` requires `personId` **and** `roleId` (`@NotBlank`). `personId` is the **business key** even
+  though the controller overwrites it - `@Valid` runs at binding time, before the body, so omitting it is a 400.
+
+  **Needs `{{roleId}}`.** Nothing in this collection creates a role, so seed it once from the gateway collection, or
+  send `GET :8083/api/v1/roles/` (below) and copy a `data[].id` into the environment variable. The test tolerates 400
+  for that reason rather than failing obscurely.
+url: "{{userService}}/api/v1/persons/{{personIdNew}}/roles"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "personId": "{{personIdLogin}}",
+      "roleId": "{{roleId}}",
+      "isPrimary": true
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('assigned, 409 if already granted, or 400 while roleId is empty', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 201, 400, 409]);
+      });
+      const j = pm.response.json();
+      if (pm.response.code === 400) {
+          console.warn('400 - {{roleId}} is empty. Run GET :8083/api/v1/roles/ and set roleId in the environment.');
+      } else {
+          pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+          pm.test('assignment references the role', function () {
+              pm.expect(j.data.roleId).to.eql(pm.collectionVariables.get('roleId'));
+          });
+      }
+    language: text/javascript
+order: 7000

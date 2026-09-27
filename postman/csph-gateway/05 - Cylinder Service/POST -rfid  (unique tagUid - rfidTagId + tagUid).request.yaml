@@ -1,0 +1,43 @@
+$kind: http-request
+name: POST /rfid  (unique tagUid -> rfidTagId + tagUid)
+description: |-
+  `CreateRfidTagRequest` requires only `tagUid` (`@NotBlank`) - the EPC identifier written into the tag''s memory.
+
+  **`bottleSerial` has a database CHECK constraint: `^[A-Z0-9]{8,}$`.** Uppercase alphanumeric only, at least 8
+  characters, no dashes. The body uses `BT` + a 15-character timestamp, so it satisfies the constraint; a value like
+  `BT-2026-01` would be rejected by Postgres rather than by bean validation, which is a much worse error to debug.
+  `tagUid` deliberately has no such constraint.
+
+  Captures both identifiers: `rfidTagId` (the UUID, for the `/rfid/{id}` routes) and `tagUid` (the EPC, for
+  `/rfid/tag/{tagUid}`) - they are different columns and both are needed below.
+url: "{{gateway}}/api/v1/rfid"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "tagUid": "E200{{uniq}}",
+      "bottleSerial": "BT{{uniq}}",
+      "currentSiteId": "{{siteId}}",
+      "status": "AVAILABLE"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('rfidTagId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('rfidTagId', j.data.id);
+      });
+      pm.test('tagUid captured (EPC)', function () {
+          pm.expect(j.data.tagUid).to.be.a('string');
+          pm.collectionVariables.set('tagUid', j.data.tagUid);
+      });
+    language: text/javascript
+order: 7000

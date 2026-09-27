@@ -1,0 +1,26 @@
+$kind: http-request
+name: GET /tours/{tourId}
+description: |-
+  Single tour, enveloped. Compare `status` / `statusDate` before and after the `start` and `close` calls further down
+  the folder - that pair is the cheapest way to see the tour lifecycle actually move.
+url: "{{gateway}}/api/v1/tours/{{tourId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('tourId')); });
+      pm.test('tourCode round-trips', function () {
+          pm.expect(j.data.tourCode).to.eql('TOUR-' + pm.collectionVariables.get('uniq'));
+      });
+    language: text/javascript
+order: 4000

@@ -1,0 +1,36 @@
+$kind: http-request
+name: GET /cylinders  (BARE PageResponse)
+description: |
+  Bottles. Filterable by `ownerOrganizationId`, `currentSiteId`, `brand`, `capacityKg` and `status`, and always sorted
+  `createdAt DESC`.
+
+  **Bare `PageResponse`**, no `success` envelope - the third service (after organization and user) to use that shape
+  for its list route. The tests are written per endpoint precisely because there is no per-service rule.
+url: "{{gateway}}/api/v1/cylinders?size=20"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  size: "20"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const d = pm.response.json();
+      pm.test('BARE PageResponse - no success envelope', function () {
+          pm.expect(d).to.be.an('object');
+          pm.expect(d).to.not.have.property('success');
+      });
+      pm.test('page metadata present', function () {
+          pm.expect(d).to.have.property('totalCount');
+          pm.expect(d).to.have.property('pageNumber');
+      });
+      const items = d.content || d.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+    language: text/javascript
+order: 1000

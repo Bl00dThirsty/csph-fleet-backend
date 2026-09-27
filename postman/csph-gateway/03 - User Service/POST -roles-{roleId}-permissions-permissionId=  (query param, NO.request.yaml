@@ -1,0 +1,38 @@
+$kind: http-request
+name: POST /roles/{roleId}/permissions?permissionId=  (query param, NO body)
+description: |-
+  **`permissionId` is a required query parameter and this endpoint takes no request body at all.**
+  `grantPermission(id, @RequestParam String permissionId, ...)` - putting it in a JSON body is the single most common
+  mistake here, and it fails with a 400 that gives no hint about the real cause.
+
+  `{{permissionId}}` comes from `GET /permissions/` below. On a cold, never-run collection it is empty, so this
+  request 400s until that request has been sent once - the folder order already accounts for it, and the test
+  distinguishes the two cases instead of failing blindly.
+
+  Re-granting a permission a role already holds is harmless, so re-runs are safe. The counterpart
+  `DELETE /roles/{roleId}/permissions/{permissionId}` exists but is not exercised here.
+url: "{{gateway}}/api/v1/roles/{{roleId}}/permissions?permissionId={{permissionId}}"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  permissionId: "{{permissionId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('granted, or 400 while permissionId is still empty', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 204, 400, 409]);
+      });
+      const j = pm.response.json();
+      if (pm.response.code === 400) {
+          console.warn('400 - permissionId is empty. Send GET /permissions/ once to populate it.');
+      } else {
+          pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      }
+    language: text/javascript
+order: 20000

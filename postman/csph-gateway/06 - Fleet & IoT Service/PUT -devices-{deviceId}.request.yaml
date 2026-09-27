@@ -1,0 +1,38 @@
+$kind: http-request
+name: PUT /devices/{deviceId}
+description: |-
+  Firmware and health update. `batteryLevel: 22` with `batteryCritical: true` is the state that should raise an
+  operational alert - this is the request that would drive one, and the status is set to `LOW_BATTERY` to match.
+
+  `UpdateDeviceRequest` is the only update DTO in the platform that also accepts `lastSync`, `lastLatitude` and
+  `lastLongitude`, because device positions arrive out of band from the tracker rather than through the REST client.
+url: "{{gateway}}/api/v1/devices/{{deviceId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "serialNumber": "DEV-{{uniq}}",
+      "deviceType": "PDA",
+      "firmwareVersion": "3.3.0",
+      "batteryLevel": 22,
+      "batteryCritical": true,
+      "lastLatitude": 4.0511,
+      "lastLongitude": 9.7679,
+      "organizationId": "{{transporterOrgId}}",
+      "status": "LOW_BATTERY"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('firmware updated', function () { pm.expect(j.data.firmwareVersion).to.eql('3.3.0'); });
+      pm.test('battery is critical', function () { pm.expect(j.data.batteryCritical).to.eql(true); });
+    language: text/javascript
+order: 8000

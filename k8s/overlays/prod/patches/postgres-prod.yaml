@@ -1,0 +1,431 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# The 9 databases, in production. One document per StatefulSet.
+#
+# ── WHY replicas STAYS AT 1. THIS IS THE IMPORTANT ONE. ───────────────────
+# The brief asks for 2 replicas everywhere except the databases, and the
+# databases are the one place where "just make it 2" is actively wrong.
+# Scaling a PostgreSQL StatefulSet to 2 without a replication mechanism does
+# NOT give you a highly-available database. It gives you TWO INDEPENDENT
+# WRITES, each with its own volume, behind ONE ClusterIP Service:
+#
+#     <randomly>  POST /login  ->  pod-0, which has the users
+#     <randomly>  POST /order  ->  pod-1, which has never heard of them
+#
+# kube-proxy load-balances the connection per TCP flow, not per transaction,
+# so a single login-then-navigate sequence can silently hit two different
+# databases. The failure is not a crash. It is missing rows, intermittently,
+# for a specific user, in a way nobody can reproduce. That is strictly worse
+# than being down, because being down is obvious.
+#
+# Three independent reasons 1 is the only correct value here:
+#
+#   1. REPLICATION IS NOT CONFIGURED. There is no Patroni, no pgpool, no
+#      streaming-replication config and no `EUREKA`-style failover proxy
+#      anywhere in this repository. postgres-fleet is a bare
+#      timescale/timescaledb-ha image, but that image provides the TimescaleDB
+#      extensions — it is not a HA operator.
+#   2. THE VOLUMES CANNOT BE SHARED. Every data-* PVC is ReadWriteOnce. RWO
+#      is exclusive per node, so two replicas could not even be co-located to
+#      replicate, let alone fail over.
+#   3. THE APPLICATIONS CANNOT USE A REPLICA SET. All nine
+#      SPRING_DATASOURCE_URL values point at a single logical name
+#      (jdbc:postgresql://postgres-auth:5432/...) with no replica-set or
+#      multi-host parameter. Even a correctly replicated pair would be
+#      invisible to the applications without a failover proxy in front.
+#
+# So replicas: 1 is stated EXPLICITLY below, not merely left at the base
+# value. An explicit 1 is a decision a reviewer can see; an inherited 1 is an
+# omission somebody will "fix" in six months.
+#
+# WHAT REAL PRODUCTION NEEDS, in order of preference:
+#   a. A MANAGED POSTGRES (Cloud SQL, RDS, Azure Database) and delete these
+#      StatefulSets entirely. Nine separate databases in one platform is nine
+#      backups, nine failover events and nine sets of credentials to rotate;
+#      a managed service gives all of that away.
+#   b. An OPERATOR — CloudNativePG or Patroni — which owns replication,
+#      failover and the anti-affinity rules that this file cannot express.
+#      The manifest shape changes completely and the nine-instances-on-one-node
+#      model goes away.
+#   c. AT MINIMUM: PgBouncer or HAProxy in transaction-pooling mode in front
+#      of a replicated pair, with the JDBC URL pointing at the pooler. This is
+#      the smallest change that makes a replica set usable, and it still needs
+#      (a) or (b) underneath.
+#
+# NONE of that is in this overlay, because all three require changing the
+# application configuration files, which are explicitly out of scope. It is
+# the first item on the pre-production checklist in NOTES.md.
+#
+# ── WHY NO PODDISRUPTIONBUDGET FOR THE DATABASES ───────────────────────────
+# A PDB with minAvailable: 1 on a 1-replica StatefulSet means the eviction API
+# refuses every voluntary disruption, forever: `kubectl drain` hangs at the
+# end waiting for a PDB that can never be satisfied, and node upgrades block
+# indefinitely. maxUnavailable: 1 is the honest value at 1 replica — it
+# permits the disruption and accepts the downtime. Rather than encode a
+# confusing object, there is simply no PDB for the database tier, and the
+# consequence (a drain takes the database down) is stated here instead.
+#
+# ── WHY NO HORIZONTALPODAUTOSCALER ─────────────────────────────────────────
+# You cannot autoscale a database by CPU in any way that means anything, and a
+# CPU-based HPA on Postgres is worse than none: it would add a second,
+# unsynchronised writer (see the top of this file). The 9 HPAs in
+# horizontalpodautoscalers.yaml cover the gateway and the 9 stateless services
+# only.
+#
+# ── WHAT IS CHANGED HERE ───────────────────────────────────────────────────
+#   replicas: 1            explicit
+#   resources              production-sized (Postgres 16 with TimescaleDB needs
+#                          more than the dev 512Mi/1Gi; shared_buffers alone
+#                          defaults to 128MB and the 9 instances together were
+#                          the reason dev scheduling events show "Insufficient
+#                          memory" on the single node)
+#   storage 2Gi -> 20Gi    a real audit/fleet table set does not fit in 2 Gi,
+#                          and the local-path provisioner is
+#                          allowVolumeExpansion: false, so the volume has to be
+#                          right at creation time
+#   storageClassName       left as `standard`; see imagepull-secret-style note
+#                          in NOTES.md — the kind cluster ships local-path and
+#                          a real cluster must not
+#   spread constraint only — `topologySpreadConstraints` with
+#     whenUnsatisfiable: ScheduleAnyway, i.e. "prefer another node". No
+#     anti-affinity term is added here, and that is deliberate:
+#
+#     (a) DoNotSchedule spread would make the first pod unschedulable on a
+#         single-node cluster, which is the difference between a preference and
+#         an outage.
+#     (b) A second "prefer spreading" mechanism on top of the spread constraint
+#         would be redundant — they express the same intent, and the scheduler
+#         evaluates both.
+#     (c) `preferredDuringSchedulingIgnoredDuringExecution` is the ONE affinity
+#         form this file deliberately avoids, and the reason is worth recording:
+#         Kubernetes 1.37 (the version in the kind node this platform runs)
+#         NO LONGER ACCEPTS THE INLINED FORM of WeightedPodAffinityTerm. The
+#         API server rejects it with
+#
+#           strict decoding error: unknown field
+#           "spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].labelSelector",
+#           unknown field "...[0].topologyKey"
+#
+#         and accepts only the newly-nested form:
+#
+#           preferredDuringSchedulingIgnoredDuringExecution:
+#           - weight: 100
+#             podAffinityTerm:        # <-- required from 1.37
+#               topologyKey: kubernetes.io/hostname
+#               labelSelector: { matchLabels: { ... } }
+#
+#         That nested spelling is 1.37-ONLY (the field did not exist before), so
+#         writing it here would fail on any older API server, and writing the old
+#         inlined spelling fails on this one. The spread constraint sidesteps
+#         the trade-off. Reproduce either way with:
+#           kubectl apply --dry-run=server -f <pod-with-that-affinity>.yaml
+#
+#         `requiredDuringSchedulingIgnoredDuringExecution` — used by the 11
+#         stateless workloads in jvm-workloads-prod.yaml — is UNAFFECTED and
+#         still takes the flat form, because PodAffinityTerm is not a wrapper
+#         there. That is why this asymmetry is safe.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-auth
+spec:
+  replicas: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-auth
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-org
+spec:
+  replicas: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-org
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-user
+spec:
+  replicas: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-user
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-audit
+spec:
+  replicas: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-audit
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-notif
+spec:
+  replicas: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-notif
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-tour
+spec:
+  replicas: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-tour
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-fleet
+spec:
+  replicas: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-fleet
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: 750m
+              memory: 1536Mi
+            limits:
+              cpu: 3000m
+              memory: 3Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-cylinder
+spec:
+  replicas: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-cylinder
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-subsidy
+spec:
+  replicas: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-subsidy
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi

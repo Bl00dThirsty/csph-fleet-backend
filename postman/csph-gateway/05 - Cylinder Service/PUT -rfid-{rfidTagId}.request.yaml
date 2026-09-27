@@ -1,0 +1,33 @@
+$kind: http-request
+name: PUT /rfid/{rfidTagId}
+description: |-
+  Updates the tag''s state. Moving to `ASSIGNEDTOBOTTLE` while `currentSiteId` is still an operational site is exactly
+  the mixed state the reconciliation report exists to catch: the tag claims a bottle but the bottle is not in
+  transit.
+
+  `bottleSerial` again obeys the `^[A-Z0-9]{8,}$` check constraint.
+url: "{{gateway}}/api/v1/rfid/{{rfidTagId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "tagUid": "{{tagUid}}",
+      "bottleSerial": "BT{{uniq}}",
+      "currentSiteId": "{{siteId}}",
+      "status": "ASSIGNEDTOBOTTLE",
+      "statusDescription": "Paired with a bottle by the csph-gateway Postman collection"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('status advanced', function () { pm.expect(j.data.status).to.eql('ASSIGNEDTOBOTTLE'); });
+    language: text/javascript
+order: 10000

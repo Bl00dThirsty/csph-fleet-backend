@@ -1,0 +1,36 @@
+$kind: http-request
+name: POST /declarations/{declarationId}/review?reviewerPersonId=&notes=
+description: |-
+  A CSPH agent reviews the declaration. Both query parameters are **optional** (`required = false`) - unlike
+  `assign-vehicle`, `skip`, `approve` and `approvedQuantity` elsewhere - but a review with no reviewer and no notes is
+  useless in practice, so both are supplied.
+
+  This is the human checkpoint between the marketer''s claim and the regulator''s decision.
+url: "{{gateway}}/api/v1/declarations/{{declarationId}}/review?reviewerPersonId={{personId}}&notes=Postman%20review%20probe"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  reviewerPersonId: "{{personId}}"
+  notes: Postman%20review%20probe
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('review rejected by the declaration state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 6000

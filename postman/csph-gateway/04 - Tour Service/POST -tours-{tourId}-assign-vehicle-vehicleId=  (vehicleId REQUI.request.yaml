@@ -1,0 +1,37 @@
+$kind: http-request
+name: POST /tours/{tourId}/assign-vehicle?vehicleId=  (vehicleId REQUIRED)
+description: |-
+  **`vehicleId` is a REQUIRED query parameter** (`@RequestParam String vehicleId`, no `required = false`) and this
+  endpoint takes no body. Omitting it is a 400 `MissingServletRequestParameterException` - the single most common
+  failure on this route.
+
+  `{{vehicleId}}` was bootstrapped by the `GET /vehicles` request at the top of this folder. If the fleet database is
+  empty, run folder `06` first to create one.
+
+  This is also the request that records `assignedByTransporterPersonId` and `transporterAssignedAt` - the audit trail
+  of who released which truck.
+url: "{{gateway}}/api/v1/tours/{{tourId}}/assign-vehicle?vehicleId={{vehicleId}}"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  vehicleId: "{{vehicleId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('vehicle assigned', function () {
+          pm.expect(j.data.vehicleId).to.eql(pm.collectionVariables.get('vehicleId'));
+      });
+      pm.test('assignment is timestamped', function () {
+          pm.expect(j.data.transporterAssignedAt).to.be.a('string');
+      });
+    language: text/javascript
+order: 7000

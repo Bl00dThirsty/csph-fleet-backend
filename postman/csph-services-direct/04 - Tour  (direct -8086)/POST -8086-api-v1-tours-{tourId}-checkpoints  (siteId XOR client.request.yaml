@@ -1,0 +1,36 @@
+$kind: http-request
+name: POST :8086/api/v1/tours/{tourId}/checkpoints  (siteId XOR clientSiteId)
+description: |-
+  **tour-service on :8086**, no security headers - `TOUR_UPDATE` is bypassed.
+
+  Two database constraints shape the body:
+
+  * `chk_checkpoint_exclusive` - exactly one of `siteId` / `clientSiteId`, never both and never neither.
+  * `UNIQUE (tournee_id, sequence)` - one stop per position per tour. The tour is created fresh in this run, so
+    `sequence: 1` is always free.
+
+  `sequence` is `@Min(1)`, and `tourId` is injected from the path - it must **not** appear in the body.
+url: "{{tourService}}/api/v1/tours/{{tourId}}/checkpoints"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "siteId": "{{siteId}}",
+      "sequence": 1,
+      "expectedArrival": "{{periodEnd}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('checkpointId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('checkpointId', j.data.id);
+      });
+    language: text/javascript
+order: 7000

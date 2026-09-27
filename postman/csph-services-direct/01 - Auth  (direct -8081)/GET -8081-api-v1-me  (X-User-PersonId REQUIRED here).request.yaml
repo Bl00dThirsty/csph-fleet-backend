@@ -1,0 +1,38 @@
+$kind: http-request
+name: GET :8081/api/v1/me  (X-User-PersonId REQUIRED here)
+description: |-
+  **auth-service on :8081**.
+
+  This is the one direct-port read that *does* need `X-User-PersonId`, and for a different reason than the permission
+  bypass: `MeController.requireCurrentUser` throws `UnauthorizedException` when the header is absent or blank. That
+  maps to 401 through `GlobalExceptionHandler`, not to a bypass - the controller is doing the check itself, before any
+  aspect could.
+
+  So this request is the exception that proves the rule: the header is not a permission token, it is a *required
+  request parameter* on this particular route.
+
+  `roles` is split out of the `X-User-Roles` header - which nothing populates on a direct call, so it is `[]` here. In
+  the gateway collection the same endpoint returns the JWT's roles. That difference is the whole point of the two
+  collections.
+url: "{{authService}}/api/v1/me"
+method: GET
+headers:
+  Content-Type: application/json
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('resolved by the X-User-PersonId header', function () {
+          pm.expect(j.data.personId).to.eql(pm.collectionVariables.get('personId'));
+      });
+      pm.test('roles empty - no gateway to inject X-User-Roles', function () {
+          pm.expect(j.data.roles).to.eql([]);
+      });
+    language: text/javascript
+order: 2000

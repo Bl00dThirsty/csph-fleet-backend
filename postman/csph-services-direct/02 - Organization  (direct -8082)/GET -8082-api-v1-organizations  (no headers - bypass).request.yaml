@@ -1,0 +1,50 @@
+$kind: http-request
+name: GET :8082/api/v1/organizations  (no headers - bypass)
+description: |-
+  **organization-service on :8082**, sent with **no security headers**. `@RequiresPermission("ORG_VIEW")` is on this
+  method, and it is skipped: `PermissionAspect` sees no `GplSecurityContext` and proceeds.
+
+  **Bare `PageResponse`** - no `success` envelope, exactly as through the gateway. Response shape is a controller
+  decision and has nothing to do with the route taken.
+
+  Also the org bootstrap for this collection: captures `orgId`, `marketerOrgId`, `transporterOrgId`, `clientOrgId`
+  leniently on `type`, and `siteId` / `siteIdDest` from the sites list two requests below.
+url: "{{orgService}}/api/v1/organizations?size=100"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  size: "100"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK - permission check was bypassed', function () { pm.expect(pm.response.code).to.eql(200); });
+      const d = pm.response.json();
+      pm.test('BARE PageResponse - no success envelope', function () {
+          pm.expect(d).to.be.an('object');
+          pm.expect(d).to.not.have.property('success');
+      });
+      pm.test('page metadata present', function () { pm.expect(d).to.have.property('totalCount'); });
+      const items = d.content || d.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+      pm.test('at least one organization', function () { pm.expect(items.length).to.be.above(0); });
+      const byType = function (needles) {
+          return items.find(function (o) {
+              const t = String(o.type || '').toUpperCase();
+              return needles.some(function (n) { return t.indexOf(n) >= 0; });
+          });
+      };
+      const first = items[0];
+      const mkt = byType(['MKT', 'MARKETEUR']);
+      const trp = byType(['TRP', 'TRANSPORTEUR']);
+      const clt = byType(['CLT', 'CLIENT']);
+      if (first) { pm.collectionVariables.set('orgId', first.id); }
+      pm.collectionVariables.set('marketerOrgId', (mkt || first || {}).id || '');
+      pm.collectionVariables.set('transporterOrgId', (trp || first || {}).id || '');
+      pm.collectionVariables.set('clientOrgId', (clt || first || {}).id || '');
+      console.log('orgId=' + ((first || {}).id) + ' marketer=' + ((mkt || {}).id) + ' transporter=' + ((trp || {}).id));
+    language: text/javascript
+order: 1000

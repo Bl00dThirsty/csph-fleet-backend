@@ -1,0 +1,31 @@
+$kind: http-request
+name: GET /organizations/{orgId}
+description: |-
+  Single organization, **enveloped** (`ApiResponse<OrganizationResponse>`) - the opposite of the list request directly
+  above, same controller, same service. Worth internalising: envelope-vs-bare is decided per method signature, not
+  per service.
+
+  `{orgId}` is the UUID primary key, not the business `code` (`CSPH`, `MKT-GPL`, `TRP-ABC`, `CLT-IND`, `DEP-DLA`,
+  `DEP-YDE` - the latter two come from the org seeder rather than the Flyway seed).
+url: "{{gateway}}/api/v1/organizations/{{orgId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('orgId')); });
+      pm.test('code and name present', function () {
+          pm.expect(j.data.code).to.be.a('string');
+          pm.expect(j.data.name).to.be.a('string');
+      });
+    language: text/javascript
+order: 2000

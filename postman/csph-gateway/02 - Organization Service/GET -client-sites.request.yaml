@@ -1,0 +1,30 @@
+$kind: http-request
+name: GET /client-sites
+description: |-
+  Client sites - a site bound to a CLIENT organization (filling centre, reseller, industrial consumer). This is the
+  `client_sites` join table that the tour service's checkpoints reference as `clientSiteId`.
+
+  This one is **enveloped** `ApiResponse<PageResponse<ClientSiteResponse>>`, the opposite of `/sites` two requests up -
+  same service, different controller, different convention. That is why the suite asserts per-endpoint rather than
+  per-service.
+url: "{{gateway}}/api/v1/client-sites"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      const p = j.data || {};
+      pm.test('page metadata present', function () { pm.expect(p).to.have.property('totalCount'); });
+      const items = p.content || p.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });if (items[0]) { pm.collectionVariables.set('clientSiteId', items[0].id); }
+    language: text/javascript
+order: 13000

@@ -1,0 +1,34 @@
+$kind: http-request
+name: GET :8086/api/v1/vehicles  (no headers - bypass; seeds vehicleId)
+description: |-
+  **fleet-device-service on :8088**, called from the tour folder for one reason: `assign-vehicle` needs a `vehicleId`
+  and this collection does not create vehicles before the tour folder runs.
+
+  No security headers, so `fleet.vehicles.read` is bypassed. Enveloped `ApiResponse<PageResponse<VehicleResponse>>` -
+  note the **dotted lower-case** permission style this service uses, against UPPER_SNAKE elsewhere.
+url: "{{fleetService}}/api/v1/vehicles?size=5"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  size: "5"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK - permission check was bypassed', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      const p = j.data || {};
+      const items = p.content || p.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+      if (items[0]) {
+          pm.collectionVariables.set('vehicleId', items[0].id);
+          console.log('vehicleId=' + items[0].id + ' (' + items[0].licensePlate + ')');
+      } else {
+          console.warn('No vehicle exists. Run folder 06 POST :8088/api/v1/vehicles first, or assign-vehicle will 400.');
+      }
+    language: text/javascript
+order: 1000

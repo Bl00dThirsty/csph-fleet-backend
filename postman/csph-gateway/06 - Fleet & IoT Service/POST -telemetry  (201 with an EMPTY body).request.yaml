@@ -1,0 +1,41 @@
+$kind: http-request
+name: POST /telemetry  (201 with an EMPTY body)
+description: |-
+  High-frequency GPS ingest from the tracker. `TelemetryIngestRequest` requires `vehicleId`, `latitude` and
+  `longitude`; everything else is optional.
+
+  **The response is 201 with a completely EMPTY body** - the handler returns `ResponseEntity.status(CREATED).build()`
+  with no payload at all. Calling `pm.response.json()` on it throws, so this request deliberately asserts on the status
+  only. This is the one place in the suite where a JSON assertion would be wrong.
+
+  In production this endpoint is the one that should be reachable by device credential rather than user JWT; the
+  `TELEMETRY_INGEST` permission annotation is the current stand-in for that.
+url: "{{gateway}}/api/v1/telemetry"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "vehicleId": "{{vehicleId}}",
+      "latitude": 4.0511,
+      "longitude": 9.7679,
+      "speed": 42.5,
+      "heading": 128.0,
+      "batteryLevel": 76.0,
+      "timestamp": "{{nowIso}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('201 Created', function () { pm.expect(pm.response.code).to.eql(201); });
+      pm.test('EMPTY body - do not parse JSON here', function () {
+          const body = pm.response.text();
+          pm.expect(body === '' || body === null, 'telemetry ingest returns no payload').to.eql(true);
+          console.log('telemetry accepted for vehicleId=' + pm.collectionVariables.get('vehicleId'));
+      });
+    language: text/javascript
+order: 11000

@@ -1,0 +1,41 @@
+$kind: http-request
+name: POST /organization-relationships
+description: |-
+  Directed org-to-org link. `type` must be a `RelationshipType` code: `MANDATE`, `CONTRACT`, `SUPPLY`, `SUBSIDIARY`,
+  `FRANCHISE`, `SUPERVISION`. `SUPPLY` is the depot -> marketer supply link.
+
+  `OrganizationRelationshipController` is **POST-only** - no GET exists, so this response is the only way to see what
+  you created. There is no unique constraint on the `(source, target)` pair, so re-runs append rows rather than
+  409ing; that is correct for what is effectively an append-only relationship log, and `contractReference` carries
+  `{{uniq}}` so the rows are still distinguishable.
+url: "{{gateway}}/api/v1/organization-relationships"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "sourceOrganizationId": "{{orgId}}",
+      "targetOrganizationId": "{{marketerOrgId}}",
+      "type": "SUPPLY",
+      "contractReference": "PM-{{uniq}}",
+      "validFrom": "{{periodStart}}",
+      "validUntil": "{{periodEnd}}",
+      "isExclusive": false,
+      "description": "Created by the csph-gateway Postman collection"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('relationship type echoed', function () { pm.expect(j.data.type).to.eql('SUPPLY'); });
+      pm.test('contractReference carries uniq', function () {
+          pm.expect(j.data.contractReference).to.eql('PM-' + pm.collectionVariables.get('uniq'));
+      });
+    language: text/javascript
+order: 17000

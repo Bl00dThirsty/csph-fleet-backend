@@ -1,0 +1,98 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Eureka discovery server.
+#
+# No ConfigMap on purpose. discovery-server/src/main/resources/application.yml
+# is self-contained — server.port 8761, register-with-eureka: false,
+# fetch-registry: false — and the module has no application-{profile}.yml, so
+# there is nothing to override and no reason to pin SPRING_PROFILES_ACTIVE
+# (pinning it would only be a lie about a profile that does not exist).
+#
+# It is the ONE JVM in the platform that ships spring-boot-starter-actuator
+# (discovery-server/pom.xml), so /actuator/health is real and both probes are
+# httpGet rather than the tcpSocket used by the 9 microservices.
+#
+# Service is a single NodePort: 8761 -> 30761, which k8s/kind-cluster.yaml maps
+# to host 8761, so the browser/swagger URL and the container network all use
+# the same port. A NodePort still gets a ClusterIP, so in-cluster
+# `discovery-server:8761` keeps working — which is what the 9 services and the
+# gateway dial via EUREKA_CLIENT_SERVICEURL_DEFAULTZONE.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery-server
+  labels:
+    app.kubernetes.io/name: discovery-server
+    app.kubernetes.io/component: infrastructure
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # replicas: 1 on a single node: take the old pod down before starting the
+      # new one so the rollout never asks the node to hold two JVMs at once.
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: discovery-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: discovery-server
+        app.kubernetes.io/component: infrastructure
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: discovery-server
+          image: csph/gpl-discovery-server:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8761
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+              scheme: HTTP
+            initialDelaySeconds: 40
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+            successThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+              scheme: HTTP
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 20
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 300m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discovery-server
+  labels:
+    app.kubernetes.io/name: discovery-server
+    app.kubernetes.io/component: infrastructure
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: discovery-server
+  ports:
+    - name: http
+      port: 8761
+      targetPort: http
+      nodePort: 30761
+      protocol: TCP

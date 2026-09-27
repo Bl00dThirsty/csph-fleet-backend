@@ -1,0 +1,23 @@
+$kind: http-request
+name: GET :8089/api/v1/declarations/{declarationId}  (no headers - bypass)
+description: |-
+  **subsidy-service on :8089**, no security headers, so the declaration read check is bypassed.
+
+  The natural place to watch `status` and `statusDate` as the folder below walks the lifecycle.
+url: "{{subsidyService}}/api/v1/declarations/{{declarationId}}"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('declarationId')); });
+      console.log('declaration status:', j.data.status);
+    language: text/javascript
+order: 3000

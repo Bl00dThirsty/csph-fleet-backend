@@ -1,0 +1,31 @@
+$kind: http-request
+name: POST /api/v1/auth/refresh
+description: |-
+  Token rotation. `AuthService.refreshToken` marks the presented token `revoked` and issues a fresh pair - so the
+  old `{{refreshToken}}` is dead once this succeeds. Needs the value captured by the login request, i.e. run it second.
+
+  `TokenRefreshResponse` carries **only** `accessToken`, `refreshToken`, `tokenType`, `expiresIn` - no `personId`, no
+  `roles`. That is why this test does not overwrite `personId`.
+url: "{{gateway}}/api/v1/auth/refresh"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "refreshToken": "{{refreshToken}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('refresh 200', function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('new accessToken issued', function () { pm.expect(j.data.accessToken).to.be.a('string'); });
+      pm.test('new refreshToken issued', function () { pm.expect(j.data.refreshToken).to.be.a('string').and.to.not.eql(''); });
+      pm.test('tokenType is Bearer', function () { pm.expect(j.data.tokenType).to.eql('Bearer'); });
+      pm.collectionVariables.set('accessToken', j.data.accessToken);
+      pm.collectionVariables.set('refreshToken', j.data.refreshToken);
+    language: text/javascript
+order: 2000

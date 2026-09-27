@@ -1,0 +1,37 @@
+$kind: http-request
+name: PUT /cylinders/{cylinderId}
+description: |-
+  Full-width update (`UpdateCylinderRequest` mirrors the create DTO). `capacityKg` and `cylinderTypeId` are changed
+  together here on purpose: in the GPL domain a bottle''s type and its capacity must agree, and mutating one without
+  the other is the kind of inconsistency that surfaces weeks later in a subsidy audit.
+url: "{{gateway}}/api/v1/cylinders/{{cylinderId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "serialNumber": "CYL-{{uniq}}",
+      "barcode": "BC-{{uniq}}",
+      "cylinderTypeId": "TYPE-12KG",
+      "ownerOrganizationId": "{{orgId}}",
+      "currentSiteId": "{{siteId}}",
+      "fillStatus": "FULL",
+      "brand": "Antargaz",
+      "capacityKg": 12.0,
+      "status": "IN_USE",
+      "statusDescription": "Re-typed by the csph-gateway Postman collection"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('capacity updated', function () { pm.expect(j.data.capacityKg).to.eql(12.0); });
+      pm.test('fill status updated', function () { pm.expect(j.data.fillStatus).to.eql('FULL'); });
+    language: text/javascript
+order: 4000

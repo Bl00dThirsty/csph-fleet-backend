@@ -1,0 +1,26 @@
+$kind: http-request
+name: GET :8083/api/v1/persons/by-person-id/{personId}  (by BUSINESS key)
+description: |-
+  **user-service on :8083**, no security headers. This method has no `@RequiresPermission` at all, so the header
+  question does not arise - it is open either way.
+
+  Business-key lookup (`/persons/by-person-id/{key}`) as opposed to the UUID lookup (`/persons/{id}`). The segment
+  order is the only thing that tells them apart, and it is the most common 404 in this API.
+url: "{{userService}}/api/v1/persons/by-person-id/{{personId}}"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('personId matches the requested business key', function () {
+          pm.expect(j.data.personId).to.eql(pm.collectionVariables.get('personId'));
+      });
+    language: text/javascript
+order: 2000

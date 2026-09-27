@@ -1,0 +1,33 @@
+$kind: http-request
+name: POST :8086/api/v1/pickups  (no headers needed)
+description: |-
+  **tour-service on :8086**, no security headers - `PICKUP_CREATE` reads `X-User-PersonId` with `required = false`, so
+  `createdBy` is null on a direct call.
+
+  `CreatePickupRequestDto` requires `marketerOrganizationId`, `sourceSiteId` and `destinationSiteId`; `requestedQuantity`
+  is `@Min(1)`. Site ids came from the folder `02` site list.
+url: "{{tourService}}/api/v1/pickups"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "marketerOrganizationId": "{{marketerOrgId}}",
+      "sourceSiteId": "{{siteId}}",
+      "destinationSiteId": "{{siteIdDest}}",
+      "requestedQuantity": 12.0
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('pickupId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('pickupId', j.data.id);
+      });
+    language: text/javascript
+order: 10000

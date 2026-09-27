@@ -1,0 +1,40 @@
+$kind: http-request
+name: GET /vehicles  (BOOTSTRAP vehicleId for assign-vehicle)
+description: |-
+  Bootstrap request, deliberately first in this folder.
+
+  `POST /tours/{id}/assign-vehicle` declares `@RequestParam String vehicleId` - **required, and it must be in the query
+  string**. Vehicles are only created in folder `06`, which runs *after* this one, so without this bootstrap the
+  assignment step would send an empty parameter and 400. Fetching an existing vehicle here is the alternative to
+  reordering the folders, and it keeps the folder independently runnable.
+
+  Note this list is **enveloped** `ApiResponse<PageResponse<VehicleResponse>>` - the opposite of folder `05`'s bare
+  `PageResponse` lists, in a different service, so nothing would let you guess it.
+url: "{{gateway}}/api/v1/vehicles?size=5"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  size: "5"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      const p = j.data || {};
+      const items = p.content || p.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+      if (items[0]) {
+          pm.collectionVariables.set('vehicleId', items[0].id);
+          console.log('bootstrap vehicleId=' + items[0].id + ' (' + items[0].licensePlate + ')');
+      } else {
+          console.warn('No vehicle exists yet. assign-vehicle will 400 until folder 06 creates one.');
+      }
+    language: text/javascript
+order: 1000

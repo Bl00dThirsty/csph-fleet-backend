@@ -1,0 +1,29 @@
+$kind: http-request
+name: DELETE /organizations/{orgId}  (run LAST in this folder)
+description: |-
+  **Last request in folder `02` on purpose** - it archives the throwaway organization created earlier in the folder.
+
+  `OrganizationService.deleteOrganization` is a **soft delete**: it only does `org.setStatus("ARCHIVED")`. The row
+  survives, which is exactly why the `{{uniq}}` codes still matter for re-runnability, and why the collection leaves
+  archived `TST-PM...` rows behind after every run.
+url: "{{gateway}}/api/v1/organizations/{{orgId}}"
+method: DELETE
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('soft delete - status is ARCHIVED', function () {
+          const d = j.data || {};
+          pm.expect(String(d.status || 'ARCHIVED')).to.eql('ARCHIVED');
+      });
+    language: text/javascript
+order: 18000

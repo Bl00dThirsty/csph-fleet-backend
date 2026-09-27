@@ -1,0 +1,33 @@
+$kind: http-request
+name: POST /groups/{groupId}/members
+description: |-
+  `AddGroupMemberRequest` takes a single `personId` - the **business key** here. (The role and site assignments above
+  also take business keys but are addressed by UUID in the path; this one has no path id to disambiguate.)
+
+  Returns `ApiResponse<Void>`, so `data` is `null` on success - the assertion checks `success`, not `data`. The
+  counterpart `DELETE /groups/{groupId}/members/{personId}` also takes the business key.
+url: "{{gateway}}/api/v1/groups/{{groupId}}/members"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "personId": "{{personIdLogin}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 member added, or 409 if already a member', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 201, 409]);
+      });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is null (ApiResponse<Void>)', function () {
+          pm.expect(j.data === null || j.data === undefined).to.eql(true);
+      });
+    language: text/javascript
+order: 27000

@@ -1,0 +1,26 @@
+$kind: http-request
+name: GET /roles/{roleId}
+description: |-
+  Single role. `RoleResponse` nests its granted `permissions` inline, so this one call shows the role's full permission
+  set without a second round-trip.
+url: "{{gateway}}/api/v1/roles/{{roleId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('roleId')); });
+      pm.test('permissions field present (may be null or empty)', function () {
+          pm.expect(j.data).to.have.property('permissions');
+      });
+    language: text/javascript
+order: 18000

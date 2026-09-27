@@ -1,0 +1,77 @@
+$kind: collection
+description: |-
+  # CSPH - API Gateway collection (the realistic path)
+
+  Every request goes through the **Spring Cloud Gateway** on `{{gateway}}` (`http://localhost:8080`). This is the path
+  a browser or mobile client actually takes: JWT in, security headers injected downstream, `@RequiresPermission`
+  enforced by `PermissionAspect`.
+
+  ## Run order
+
+  ```
+  00 - Health & Discovery      no auth needed (except the second actuator request)
+  01 - Auth                    <-- LOGIN HERE; everything downstream needs accessToken
+  01b - Auth negative cases    must 401
+  02 - Organization Service    captures orgId, marketerOrgId, transporterOrgId, clientOrgId, siteId, siteIdDest
+  03 - User Service            captures personIdNew, personIdLogin, roleId, groupId, permissionId
+  04 - Tour Service            captures tourId, checkpointId, pickupId, contractId
+  05 - Cylinder Service        captures cylinderId, rfidTagId, tagUid, scanEventId
+  06 - Fleet & IoT Service     captures vehicleId, deviceId
+  07 - Subsidy Service         captures declarationId, reconciliationId, redressementId
+  08 - Audit Service
+  09 - Notification Service    captures templateCode
+  ```
+
+  Run the **collection**, not single requests, so the collection-level pre-request script regenerates `uniq` for
+  each one.
+
+  ## Response envelope gotcha
+
+  Most endpoints answer `{"success":bool,"message":str,"data":...}`. These answer a **bare `PageResponse`** with no
+  envelope at all:
+
+  `/api/v1/organizations`, `/api/v1/sites`, `/api/v1/persons/`, `/api/v1/users/`, `/api/v1/cylinders`,
+  `/api/v1/rfid`, `/api/v1/scans`
+
+  And `/api/v1/telemetry/vehicles/*` answers a bare object / bare array. `PageResponse` serialises `member` as the
+  primary field plus the `content` and `totalElements` aliases, so the tests here accept either.
+
+  Whether a response is enveloped is decided **per method signature, not per service** - organization-service alone
+  has both, in the same controller.
+
+  ## Gateway 401 bodies are plain text
+
+  `Missing Authorization Header`, `Invalid Authorization Header`, `Invalid JWT Token` - raw bytes, not JSON. Do not
+  assert a JSON envelope on those.
+
+  ## Companion
+
+  `csph-services-direct` hits each service on its own port with no gateway and no JWT, which is what makes
+  `PermissionAspect` skip every `@RequiresPermission` check. Use it to explore the endpoint surface; use this
+  collection to verify what a real client actually sees.
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      // ==================================================================
+      // CSPH suite - COLLECTION level pre-request. Runs before EVERY request.
+      // ==================================================================
+      var ts = Date.now();
+      pm.collectionVariables.set('uniq', 'PM' + ts);
+      pm.collectionVariables.set('nowIso', new Date(ts).toISOString());
+      pm.collectionVariables.set('periodStart', new Date(ts - 30 * 86400000).toISOString());
+      pm.collectionVariables.set('periodEnd', new Date(ts).toISOString());
+      pm.collectionVariables.set('dueDate', new Date(ts + 30 * 86400000).toISOString());
+      var t = pm.collectionVariables.get('accessToken');
+      pm.collectionVariables.set('authHeader', t ? 'Bearer ' + t : '');
+    language: text/javascript
+  - type: http:afterResponse
+    code: |-
+      // ---- collection teardown: confirm a response actually came back ----
+      pm.test('response received (service reachable?)', function () {
+          pm.expect(pm.response.code, 'no HTTP response at all - is the service up?').to.be.a('number');
+      });
+    language: text/javascript
+auth:
+  - id: ""
+    type: noauth
+    name: No Auth

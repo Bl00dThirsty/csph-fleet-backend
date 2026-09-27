@@ -1,0 +1,23 @@
+$kind: http-request
+name: GET :8083/api/v1/persons/{personIdNew}/roles  (no headers - bypass)
+description: |-
+  **user-service on :8083**, no security headers, so `ROLE_VIEW` is bypassed.
+
+  Queried by the person''s **business** `personId` internally, even though the path carries the UUID - the controller
+  resolves the person first. Empty for the person just created.
+url: "{{userService}}/api/v1/persons/{{personIdNew}}/roles"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array', function () { pm.expect(j.data).to.be.an('array'); });console.log('role assignments (empty before the POST below):', j.data.length);
+    language: text/javascript
+order: 6000

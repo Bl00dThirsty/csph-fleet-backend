@@ -1,0 +1,37 @@
+$kind: http-request
+name: GET /scans  (BARE PageResponse)
+description: |-
+  Scan events - one row per tag read at a checkpoint, and the raw material of every reconciliation in folder `07`.
+  **Bare `PageResponse`**, filterable by `checkpointId`, `driverPersonId`, `rfidTagId`, `direction`, sorted
+  `timestamp DESC`.
+
+  `direction` is `IN` or `OUT` (`ScanDirection`). A physically impossible sequence - two `OUT`s without an `IN` - is
+  what sets `conflictStatus` and creates the work the `resolve-conflict` route below exists to clear.
+url: "{{gateway}}/api/v1/scans?size=20"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  size: "20"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const d = pm.response.json();
+      pm.test('BARE PageResponse - no success envelope', function () {
+          pm.expect(d).to.be.an('object');
+          pm.expect(d).to.not.have.property('success');
+      });
+      pm.test('page metadata present', function () {
+          pm.expect(d).to.have.property('totalCount');
+          pm.expect(d).to.have.property('pageNumber');
+      });
+      const items = d.content || d.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+    language: text/javascript
+order: 11000

@@ -1,0 +1,760 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Production policy for the 11 stateless JVM workloads:
+#   api-gateway, discovery-server, and the 9 microservices.
+#
+# Five changes per workload, all strategic-merge so they compose with the base
+# rather than replacing it:
+#
+#   1. replicas: 2
+#   2. the dev rollout strategy replaced
+#   3. startupProbe added; liveness/readiness re-timed  <-- INSIDE the container
+#   4. topologySpreadConstraints + podAntiAffinity over kubernetes.io/hostname
+#   5. production resources
+#
+# ── WHERE THE PROBES GO. THIS IS THE EASY MISTAKE IN THIS WHOLE FILE. ───────
+# `livenessProbe`, `readinessProbe` and `startupProbe` are fields of a
+# CONTAINER, not of a PodSpec. Writing them as siblings of `containers:` under
+# `spec.template.spec` produces a manifest that
+#   * renders without complaint (`kubectl kustomize` does not validate schemas)
+#   * passes `kubectl apply --dry-run=client` without complaint (it does no
+#     schema validation at all)
+#   * and is REJECTED by the API server with
+#       strict decoding error: unknown field "spec.template.spec.startupProbe"
+#
+# It is also a silent no-op in the worst way: because the misplaced probe never
+# merges with the base, the BASE's probes stay exactly as they were
+# (initialDelaySeconds 90 / 45) and the intended 300-second startup grace is
+# simply absent. Only `kubectl apply --dry-run=server` finds this, which is why
+# the validation step for this overlay is server-side and not client-side.
+#
+# Compare with the topology/affinity keys, which DO belong to the PodSpec and
+# therefore sit beside `containers:` — that difference is the whole point.
+#
+# ── 1. REPLICAS 2, AND THE HPA FIGHT THIS CREATES ──────────────────────────
+# 2 replicas is the floor for any real availability claim: a node drain, a
+# rolling update or a crash then costs zero availability. But a hardcoded
+# `replicas: 2` on a Deployment that also has a HorizontalPodAutoscaler is a
+# known footgun — the Deployment controller resets `spec.replicas` to 2 on
+# every apply, so every HPA scale-up is silently reverted by the next
+# `kubectl apply`. Both objects are included because the brief asks for both,
+# and the HPA's minReplicas is set to 2 so they at least agree.
+#
+#   >>> BEFORE THE FIRST REAL DEPLOY: delete `replicas:` from these
+#   >>> Deployments (or add the `autoscaling/v2: "<hpa-name>"` annotation to
+#   >>> spec.template.metadata.annotations) so the HPA owns the replica count.
+#   >>> NOTES.md has the detail.
+#
+# ── 2. THE DEV STRATEGY, AND WHY IT MUST GO ────────────────────────────────
+# The base carries maxSurge: 0 / maxUnavailable: 1. That is correct on ONE
+# node — it means the node never has to hold two copies of a 1.5 GiB JVM at
+# once — and wrong on three, where it makes every rollout take the service
+# fully down for the length of one cold JVM start (30-45s here). Production
+# uses maxSurge: 1 / maxUnavailable: 0, which keeps at least one pod serving
+# throughout the rollout.
+#
+# ── 3. THE startupProbe. THIS IS THE ONE THAT PREVENTS AN OUTAGE ──────────
+# The base has livenessProbe.initialDelaySeconds: 90 on a tcpSocket probe. On
+# a node that is also running a build, or on a cold page cache, a JVM can take
+# longer than 90s to bind its port. When that happens:
+#
+#     t=0    container starts
+#     t=90   liveness fires for the FIRST time, port not bound yet
+#     t=90+  kubelet kills the container
+#     t=95   container starts again from scratch
+#     t=185  killed again            <-- and again, forever
+#
+# That is a restart loop that never converges: the pod can NEVER become Ready
+# because it is killed before it is ever allowed to finish starting. It looks
+# like "the service is broken" and it is actually "the probe is impatient".
+#
+# A startupProbe removes the failure mode by construction. While it has not yet
+# succeeded, the liveness and readiness probes are NOT RUN AT ALL. The JVM gets
+# an unconditional 5 minutes to bind its port, and only then does normal
+# supervision begin. failureThreshold: 60 x periodSeconds: 5 = 300s, comfortably
+# above the worst observed start on this platform (~45s) and above a cold node.
+#
+# Consequence worth stating: initialDelaySeconds on liveness/readiness is
+# IGNORED until the startupProbe succeeds (per the Kubernetes documentation), so
+# the values below are effectively "how long after startup do we start
+# judging". They are set low on purpose.
+#
+# ── 4. SPREAD AND ANTI-AFFINITY ────────────────────────────────────────────
+# topologySpreadConstraints with whenUnsatisfiable: DoNotSchedule makes the
+# scheduler treat an unbalanced placement as a HARD error rather than a hint,
+# so 2 replicas cannot silently land on one node. podAntiAffinity:
+# requiredDuringScheduling says the same thing by another mechanism, with a
+# clearer failure message. Both are here because the brief asks for both;
+# either alone is sufficient, and on a real cluster you would keep one.
+#
+# ⚠ ON THE CURRENT SINGLE-NODE kind CLUSTER BOTH ARE UNSATISFIABLE. One
+#   hostname, two replicas, required anti-affinity: the second pod can never be
+#   scheduled and stays Pending forever. That is CORRECT behaviour for a
+#   production manifest, and it is the clearest possible signal that this
+#   overlay is not for a one-node cluster. NOTES.md lists the three ways to work
+#   around it and their exact symptoms.
+#
+# ── 5. RESOURCES ───────────────────────────────────────────────────────────
+# Sized from the base's own numbers rather than invented: the base runs a
+# 1.5 Gi limit with JAVA_TOOL_OPTIONS=MaxRAMPercentage=70, so the JVM heap is
+# ~1.07 Gi with headroom for Metaspace and Netty direct buffers. Production
+# raises the limit to 2 Gi, which at the same 70% gives a ~1.4 Gi heap —
+# headroom for a larger seed/permission set and for two replicas co-tenanted on
+# a node — without changing any Java code.
+#
+# The totals matter more than the per-pod numbers: 20 JVM pods x 500m / 1Gi
+# requests = 10 vCPU and 20 GiB of requests, before the 9 databases. A cluster
+# smaller than that will not fit this overlay. NOTES.md has the arithmetic.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── api-gateway ────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: api-gateway
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: api-gateway
+      containers:
+        - name: api-gateway
+          # 8080 is the only port the outside world can reach, so kubelet probes
+          # must be allowed to it. See networkpolicies.yaml for the
+          # node-origin rule that makes this work under a default-deny policy.
+          startupProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+---
+# ── discovery-server ───────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery-server
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: discovery-server
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: discovery-server
+      containers:
+        - name: discovery-server
+          # discovery-server is the one JVM that HAS actuator
+          # (discovery-server/pom.xml declares spring-boot-starter-actuator), so
+          # it is the one place an httpGet probe is honest. /actuator/health is
+          # a real endpoint here — and nowhere else on this platform.
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+              scheme: HTTP
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+              scheme: HTTP
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 400m
+              memory: 768Mi
+            limits:
+              cpu: 1200m
+              memory: 1536Mi
+---
+# ── the 9 microservices ────────────────────────────────────────────────────
+# Identical shape for each; only the port, the container name and the app label
+# differ. Nine explicit documents rather than a loop or a JSON patch, because a
+# kustomize patch cannot template, and an explicit document per workload is
+# what `kubectl get deploy -o yaml` and every future reviewer can actually read.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: auth-service
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: auth-service
+      containers:
+        - name: auth-service
+          startupProbe:
+            tcpSocket:
+              port: 8081
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: organization-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: organization-service
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: organization-service
+      containers:
+        - name: organization-service
+          startupProbe:
+            tcpSocket:
+              port: 8082
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8082
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: user-service
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: user-service
+      containers:
+        - name: user-service
+          startupProbe:
+            tcpSocket:
+              port: 8083
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8083
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: audit-service
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: audit-service
+      containers:
+        - name: audit-service
+          startupProbe:
+            tcpSocket:
+              port: 8084
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8084
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8084
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: notification-service
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: notification-service
+      containers:
+        - name: notification-service
+          startupProbe:
+            tcpSocket:
+              port: 8085
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8085
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8085
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tour-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: tour-service
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: tour-service
+      containers:
+        - name: tour-service
+          # tcpSocket, not httpGet: tour-service CONFIGURES
+          # management.endpoints.web.exposure.include in its application.yml,
+          # but that block is inert without spring-boot-starter-actuator on the
+          # classpath, and it is not there. An httpGet probe on
+          # /actuator/health would sit in a permanent restart loop. This is the
+          # base's reasoning and the prod override must not quietly undo it.
+          startupProbe:
+            tcpSocket:
+              port: 8086
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8086
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8086
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cylinder-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: cylinder-service
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: cylinder-service
+      containers:
+        - name: cylinder-service
+          startupProbe:
+            tcpSocket:
+              port: 8087
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8087
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8087
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-device-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: fleet-device-service
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: fleet-device-service
+      containers:
+        - name: fleet-device-service
+          startupProbe:
+            tcpSocket:
+              port: 8088
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8088
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8088
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subsidy-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: subsidy-service
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: subsidy-service
+      containers:
+        - name: subsidy-service
+          startupProbe:
+            tcpSocket:
+              port: 8089
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8089
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8089
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1500m
+              memory: 2Gi

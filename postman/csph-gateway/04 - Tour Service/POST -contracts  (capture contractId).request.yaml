@@ -1,0 +1,37 @@
+$kind: http-request
+name: POST /contracts  (capture contractId)
+description: |-
+  `CreateTransporterContractDto` requires the two organisation ids and a `contractReference`. `contractReference`
+  carries `{{uniq}}` so re-runs do not collide.
+
+  `isPrimary` marks this as the marketer''s default transporter - at most one primary per marketer in practice, so
+  repeated creation of primaries is a data-quality issue even when the API accepts it.
+url: "{{gateway}}/api/v1/contracts"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "marketerOrganizationId": "{{marketerOrgId}}",
+      "transporterOrganizationId": "{{transporterOrgId}}",
+      "contractReference": "CTR-{{uniq}}",
+      "isPrimary": true,
+      "startedAt": "{{periodStart}}",
+      "endedAt": "{{periodEnd}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('contractId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('contractId', j.data.id);
+      });
+    language: text/javascript
+order: 21000

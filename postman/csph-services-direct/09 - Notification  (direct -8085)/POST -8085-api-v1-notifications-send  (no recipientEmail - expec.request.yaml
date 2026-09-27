@@ -1,0 +1,48 @@
+$kind: http-request
+name: POST :8085/api/v1/notifications/send  (no recipientEmail - expect 200)
+description: |-
+  **notification-service on :8085**, no security headers.
+
+  **`recipientEmail` is deliberately NOT sent.** It is optional, and when absent `NotificationService` logs
+  `Channel EMAIL not supported or missing email for ...`, skips the SMTP call, and the endpoint still answers
+  **200**. That keeps this request working with a local MailHog - or with no SMTP server at all - which is the point of
+  a repeatable suite.
+
+  If you do add `recipientEmail`, the send attempts real SMTP against `spring.mail.host` (`MAIL_HOST`, default
+  `smtp.gmail.com:587`). Any failure is caught and recorded as `status: FAILED` on the log row, and the endpoint still
+  answers 200 - so check `j.data.status`, not the HTTP code, to know what happened. Captured mail shows up at
+  `{{mailhogWeb}}` (MailHog UI, default :8026).
+
+  The `variables` map is what fills the `{{placeholder}}` slots in the template body.
+url: "{{notifService}}/api/v1/notifications/send"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "templateCode": "{{templateCode}}",
+      "recipientPersonId": "{{personId}}",
+      "channel": "EMAIL",
+      "variables": {
+        "recipientName": "Postman",
+        "reference": "DIR-TOUR",
+        "status": "en attente"
+      },
+      "relatedEntityType": "TOUR",
+      "relatedEntityId": "{{tourId}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('notification recorded', function () { pm.expect(j.data.id).to.be.a('string'); });
+      pm.test('status is SENT (SMTP skipped without recipientEmail)', function () {
+          pm.expect(['SENT', 'FAILED']).to.include(j.data.status);
+      });
+      console.log('notification status:', j.data.status, '- channel:', j.data.channel);
+    language: text/javascript
+order: 4000

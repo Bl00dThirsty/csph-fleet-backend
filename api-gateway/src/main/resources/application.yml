@@ -1,6 +1,22 @@
 server:
   port: 8080
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+  # /actuator/** is served by the gateway itself, not by a route, so
+  # JwtAuthenticationFilter (which is attached per-route in GatewayConfig) never
+  # sees it. That is deliberate: the readiness probe in Postman and in
+  # k8s/scripts/status.ps1 must be able to call it without a token. It exposes
+  # no business data — only "UP"/"DOWN" and the registered-service list.
+  server:
+    port: 8080
+
 spring:
   application:
     name: api-gateway
@@ -16,7 +32,7 @@ spring:
         - id: auth-service
           uri: lb://auth-service
           predicates:
-            - Path=/api/v1/auth/**, /v3/api-docs/auth-service
+            - Path=/api/v1/auth/**, /api/v1/me/**, /v3/api-docs/auth-service
         - id: organization-service
           uri: lb://organization-service
           predicates:
@@ -44,7 +60,7 @@ spring:
         - id: fleet-device-service
           uri: lb://fleet-device-service
           predicates:
-            - Path=/api/v1/vehicles/**, /api/v1/devices/**, /api/v1/vehicle-positions/**, /api/v1/geofence-events/**, /v3/api-docs/fleet-device-service
+            - Path=/api/v1/vehicles/**, /api/v1/devices/**, /api/v1/vehicle-positions/**, /api/v1/geofence-events/**, /api/v1/telemetry/**, /v3/api-docs/fleet-device-service
         - id: subsidy-service
           uri: lb://subsidy-service
           predicates:

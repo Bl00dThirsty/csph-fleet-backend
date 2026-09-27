@@ -1,5 +1,6 @@
 package com.gpl.organization.service;
 
+import com.gpl.common.exception.DuplicateResourceException;
 import com.gpl.common.dto.PageResponse;
 import com.gpl.organization.dto.*;
 import com.gpl.organization.model.Organization;
@@ -23,7 +24,7 @@ public class OrganizationService {
     @Transactional
     public OrganizationResponse createOrganization(CreateOrganizationRequest request, String createdBy) {
         if (organizationRepository.existsByCode(request.getCode())) {
-            throw new RuntimeException("Organization with code " + request.getCode() + " already exists");
+            throw new DuplicateResourceException("Organization with code " + request.getCode() + " already exists");
         }
 
         Organization org = Organization.builder()

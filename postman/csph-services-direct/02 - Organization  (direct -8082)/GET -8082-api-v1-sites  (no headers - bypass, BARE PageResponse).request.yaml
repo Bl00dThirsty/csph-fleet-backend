@@ -1,0 +1,37 @@
+$kind: http-request
+name: GET :8082/api/v1/sites  (no headers - bypass, BARE PageResponse)
+description: |-
+  **organization-service on :8082**, no security headers, so `SITE_VIEW` is bypassed.
+
+  **Bare `PageResponse`** again, like `/organizations` directly above. Captures `siteId` (row 0) and `siteIdDest`
+  (row 1) for the tour and cylinder folders below.
+
+  `siteId` is the **primary key**; the business keys are `SITE-CSPH-HQ`, `SITE-DEP-DLA-PRINCIPAL`,
+  `SITE-CLT-IND-RECEPTION` and friends (the `siteCode*` environment variables).
+url: "{{orgService}}/api/v1/sites?size=100"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  size: "100"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK - permission check was bypassed', function () { pm.expect(pm.response.code).to.eql(200); });
+      const d = pm.response.json();
+      pm.test('BARE PageResponse - no success envelope', function () {
+          pm.expect(d).to.be.an('object');
+          pm.expect(d).to.not.have.property('success');
+      });
+      const items = d.content || d.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+      if (items[0]) {
+          pm.collectionVariables.set('siteId', items[0].id);
+          pm.collectionVariables.set('siteIdDest', (items[1] || items[0]).id);
+          console.log('siteId=' + items[0].id + ' (' + items[0].siteId + ')');
+      }
+    language: text/javascript
+order: 6000

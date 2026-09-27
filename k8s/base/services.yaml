@@ -1,0 +1,1166 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# The 9 Spring Boot microservices.
+#
+# Per service: 1 ConfigMap (non-secret config) + 1 Deployment + 1 ClusterIP
+# Service (in-cluster, and the DNS name Eureka/gateway use) + 1 NodePort
+# Service (host access on the fixed nodePort from k8s/kind-cluster.yaml).
+# Two Services again because a Service has exactly one `type`.
+#
+# PROBE DECISION — tcpSocket for all nine, not one single httpGet:
+#   the actuator starter is on the classpath of NONE of these modules. The only
+#   pom.xml that declares spring-boot-starter-actuator is discovery-server's;
+#   the parent pom contributes only Lombok, and neither
+#   spring-cloud-starter-netflix-eureka-client nor
+#   spring-cloud-starter-gateway pulls actuator in transitively. Without the
+#   starter there is no /actuator endpoint, so an httpGet probe would sit in
+#   CrashLoopBackOff forever. tour-service is the trap: it *configures*
+#   management.endpoints.web.exposure.include in its application.yml, but that
+#   block is inert without the starter — hence tcpSocket there too.
+#   tcpSocket is the honest liveness signal anyway: it proves Netty/Tomcat has
+#   bound the port, which is exactly what "is this replica able to serve" means
+#   to the gateway. Readiness is given a long initial delay and a high failure
+#   threshold because these pods start against a database and a Eureka server
+#   that are not up yet — Kubernetes, not an initContainer, sequences this.
+#
+#   (t2 discovery-server, which really does have actuator, uses httpGet — see
+#   discovery.yaml.)
+#
+# Every pod gets three envFrom sources:
+#   jvm-common          JAVA_TOOL_OPTIONS (see jvm-config.yaml)
+#   <svc>-config        the overrides below, all of them beating the localhost
+#                       defaults hard-coded in the module's application.yml
+#   gpl-app-credentials SPRING_DATASOURCE_PASSWORD + GPL_JWT_SECRET
+#                       (SPRING_DATASOURCE_USERNAME is repeated in the
+#                       ConfigMap on purpose: it is not a secret and keeping it
+#                       visible here documents the credential set)
+#
+# EUREKA_INSTANCE_PREFER_IP_ADDRESS=true is not in any application.yml except
+# tour-service's, and it is required: without it a Eureka client registers its
+# pod *hostname* (the pod name), which no other pod can resolve, and every
+# `lb://auth-service` route in api-gateway would 503 with "no instances
+# available". Registering the pod IP makes the registry directly routable.
+#
+# SPRING_PROFILES_ACTIVE=dev turns the @Profile({"dev","test","local","default"})
+# seeders (AuthDataInitializer, DataInitializer, UserDataInitializer,
+# RolesPermissionsInitializer, TourDataInitializer) on explicitly and
+# deterministically, instead of relying on the absence of any profile.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────
+# auth-service — 8081 — postgres-auth/gpl_auth_db
+# Signs the JWTs that api-gateway's JwtAuthenticationFilter verifies, so it
+# shares gpl-app-credentials with the gateway.
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-service-config
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/component: application
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-auth:5432/gpl_auth_db"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  # The gateway forwards the caller's full permission set as the
+  # X-User-Permissions request header. With permissions correctly seeded there
+  # are 187 codes, which is ~5 KB -- over Tomcat's 8 KB default
+  # max-http-request-header-size, so every gateway request failed with a bare
+  # 400 "Request header is too large". Raise the ceiling to 64 KB.
+  SERVER_MAX_HTTP_REQUEST_HEADER_SIZE: "65536"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: auth-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: auth-service
+        app.kubernetes.io/component: application
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: auth-service
+          image: csph/gpl-auth-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: jvm-common
+            - configMapRef:
+                name: auth-service-config
+            - secretRef:
+                name: gpl-app-credentials
+          readinessProbe:
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 20
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 400m
+              memory: 768Mi
+            limits:
+              cpu: 1500m
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/component: application
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: auth-service
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service-nodeport
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/component: application
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: auth-service
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+      nodePort: 30081
+      protocol: TCP
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# organization-service — 8082 — postgres-org/gpl_organization_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: organization-service-config
+  labels:
+    app.kubernetes.io/name: organization-service
+    app.kubernetes.io/component: application
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-org:5432/gpl_organization_db"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  # The gateway forwards the caller's full permission set as the
+  # X-User-Permissions request header. With permissions correctly seeded there
+  # are 187 codes, which is ~5 KB -- over Tomcat's 8 KB default
+  # max-http-request-header-size, so every gateway request failed with a bare
+  # 400 "Request header is too large". Raise the ceiling to 64 KB.
+  SERVER_MAX_HTTP_REQUEST_HEADER_SIZE: "65536"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: organization-service
+  labels:
+    app.kubernetes.io/name: organization-service
+    app.kubernetes.io/component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: organization-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: organization-service
+        app.kubernetes.io/component: application
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: organization-service
+          image: csph/gpl-organization-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8082
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: jvm-common
+            - configMapRef:
+                name: organization-service-config
+            - secretRef:
+                name: gpl-app-credentials
+          readinessProbe:
+            tcpSocket:
+              port: 8082
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 20
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8082
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 400m
+              memory: 768Mi
+            limits:
+              cpu: 1500m
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: organization-service
+  labels:
+    app.kubernetes.io/name: organization-service
+    app.kubernetes.io/component: application
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: organization-service
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: organization-service-nodeport
+  labels:
+    app.kubernetes.io/name: organization-service
+    app.kubernetes.io/component: application
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: organization-service
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http
+      nodePort: 30082
+      protocol: TCP
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# user-service — 8083 — postgres-user/gpl_user_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+  labels:
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/component: application
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-user:5432/gpl_user_db"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  # The gateway forwards the caller's full permission set as the
+  # X-User-Permissions request header. With permissions correctly seeded there
+  # are 187 codes, which is ~5 KB -- over Tomcat's 8 KB default
+  # max-http-request-header-size, so every gateway request failed with a bare
+  # 400 "Request header is too large". Raise the ceiling to 64 KB.
+  SERVER_MAX_HTTP_REQUEST_HEADER_SIZE: "65536"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  labels:
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: user-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: user-service
+        app.kubernetes.io/component: application
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: user-service
+          image: csph/gpl-user-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8083
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: jvm-common
+            - configMapRef:
+                name: user-service-config
+            - secretRef:
+                name: gpl-app-credentials
+          readinessProbe:
+            tcpSocket:
+              port: 8083
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 20
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8083
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 400m
+              memory: 768Mi
+            limits:
+              cpu: 1500m
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  labels:
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/component: application
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: user-service
+  ports:
+    - name: http
+      port: 8083
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service-nodeport
+  labels:
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/component: application
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: user-service
+  ports:
+    - name: http
+      port: 8083
+      targetPort: http
+      nodePort: 30083
+      protocol: TCP
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# audit-service — 8084 — postgres-audit/gpl_audit_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audit-service-config
+  labels:
+    app.kubernetes.io/name: audit-service
+    app.kubernetes.io/component: application
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-audit:5432/gpl_audit_db"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  # The gateway forwards the caller's full permission set as the
+  # X-User-Permissions request header. With permissions correctly seeded there
+  # are 187 codes, which is ~5 KB -- over Tomcat's 8 KB default
+  # max-http-request-header-size, so every gateway request failed with a bare
+  # 400 "Request header is too large". Raise the ceiling to 64 KB.
+  SERVER_MAX_HTTP_REQUEST_HEADER_SIZE: "65536"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-service
+  labels:
+    app.kubernetes.io/name: audit-service
+    app.kubernetes.io/component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: audit-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: audit-service
+        app.kubernetes.io/component: application
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: audit-service
+          image: csph/gpl-audit-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8084
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: jvm-common
+            - configMapRef:
+                name: audit-service-config
+            - secretRef:
+                name: gpl-app-credentials
+          readinessProbe:
+            tcpSocket:
+              port: 8084
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 20
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8084
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 400m
+              memory: 768Mi
+            limits:
+              cpu: 1500m
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-service
+  labels:
+    app.kubernetes.io/name: audit-service
+    app.kubernetes.io/component: application
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: audit-service
+  ports:
+    - name: http
+      port: 8084
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-service-nodeport
+  labels:
+    app.kubernetes.io/name: audit-service
+    app.kubernetes.io/component: application
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: audit-service
+  ports:
+    - name: http
+      port: 8084
+      targetPort: http
+      nodePort: 30084
+      protocol: TCP
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# notification-service — 8085 — postgres-notif/gpl_notification_db
+#
+# The SPRING_MAIL_* block points SMTP at the in-cluster MailHog instead of
+# smtp.gmail.com:587. smtp.auth/starttls must both go false: MailHog accepts
+# anything, so leaving them on makes JavaMail try to AUTH/STARTTLS against a
+# server that speaks neither and /api/v1/notifications/** returns 500 on send.
+# The password/username values are ignored by MailHog but JavaMail still wants
+# them present when auth is on, so they are kept for symmetry.
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-service-config
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/component: application
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-notif:5432/gpl_notification_db"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  # The gateway forwards the caller's full permission set as the
+  # X-User-Permissions request header. With permissions correctly seeded there
+  # are 187 codes, which is ~5 KB -- over Tomcat's 8 KB default
+  # max-http-request-header-size, so every gateway request failed with a bare
+  # 400 "Request header is too large". Raise the ceiling to 64 KB.
+  SERVER_MAX_HTTP_REQUEST_HEADER_SIZE: "65536"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+  SPRING_MAIL_HOST: "mailhog"
+  SPRING_MAIL_PORT: "1025"
+  SPRING_MAIL_USERNAME: "mailhog"
+  SPRING_MAIL_PASSWORD: "mailhog"
+  SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "false"
+  SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: notification-service
+        app.kubernetes.io/component: application
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: notification-service
+          image: csph/gpl-notification-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8085
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: jvm-common
+            - configMapRef:
+                name: notification-service-config
+            - secretRef:
+                name: gpl-app-credentials
+          readinessProbe:
+            tcpSocket:
+              port: 8085
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 20
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8085
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 400m
+              memory: 768Mi
+            limits:
+              cpu: 1500m
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/component: application
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: notification-service
+  ports:
+    - name: http
+      port: 8085
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service-nodeport
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/component: application
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: notification-service
+  ports:
+    - name: http
+      port: 8085
+      targetPort: http
+      nodePort: 30085
+      protocol: TCP
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# tour-service — 8086 — postgres-tour/gpl_tour_db
+# Its application.yml already defaults the DB host to `postgres-tour` and sets
+# eureka.instance.prefer-ip-address: true; the env vars below make the same
+# wiring explicit and uniform with the other eight.
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tour-service-config
+  labels:
+    app.kubernetes.io/name: tour-service
+    app.kubernetes.io/component: application
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-tour:5432/gpl_tour_db"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  # The gateway forwards the caller's full permission set as the
+  # X-User-Permissions request header. With permissions correctly seeded there
+  # are 187 codes, which is ~5 KB -- over Tomcat's 8 KB default
+  # max-http-request-header-size, so every gateway request failed with a bare
+  # 400 "Request header is too large". Raise the ceiling to 64 KB.
+  SERVER_MAX_HTTP_REQUEST_HEADER_SIZE: "65536"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tour-service
+  labels:
+    app.kubernetes.io/name: tour-service
+    app.kubernetes.io/component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tour-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tour-service
+        app.kubernetes.io/component: application
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: tour-service
+          image: csph/gpl-tour-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8086
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: jvm-common
+            - configMapRef:
+                name: tour-service-config
+            - secretRef:
+                name: gpl-app-credentials
+          readinessProbe:
+            # tour-service configures management.endpoints.web.exposure but has
+            # no actuator starter on the classpath, so /actuator/health does not
+            # exist — tcpSocket instead of a probe that could only ever fail.
+            tcpSocket:
+              port: 8086
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 20
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8086
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 400m
+              memory: 768Mi
+            limits:
+              cpu: 1500m
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tour-service
+  labels:
+    app.kubernetes.io/name: tour-service
+    app.kubernetes.io/component: application
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: tour-service
+  ports:
+    - name: http
+      port: 8086
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tour-service-nodeport
+  labels:
+    app.kubernetes.io/name: tour-service
+    app.kubernetes.io/component: application
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: tour-service
+  ports:
+    - name: http
+      port: 8086
+      targetPort: http
+      nodePort: 30086
+      protocol: TCP
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# cylinder-service — 8087 — postgres-cylinder/gpl_cylinder_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cylinder-service-config
+  labels:
+    app.kubernetes.io/name: cylinder-service
+    app.kubernetes.io/component: application
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-cylinder:5432/gpl_cylinder_db"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  # The gateway forwards the caller's full permission set as the
+  # X-User-Permissions request header. With permissions correctly seeded there
+  # are 187 codes, which is ~5 KB -- over Tomcat's 8 KB default
+  # max-http-request-header-size, so every gateway request failed with a bare
+  # 400 "Request header is too large". Raise the ceiling to 64 KB.
+  SERVER_MAX_HTTP_REQUEST_HEADER_SIZE: "65536"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cylinder-service
+  labels:
+    app.kubernetes.io/name: cylinder-service
+    app.kubernetes.io/component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cylinder-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cylinder-service
+        app.kubernetes.io/component: application
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: cylinder-service
+          image: csph/gpl-cylinder-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8087
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: jvm-common
+            - configMapRef:
+                name: cylinder-service-config
+            - secretRef:
+                name: gpl-app-credentials
+          readinessProbe:
+            tcpSocket:
+              port: 8087
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 20
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8087
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 400m
+              memory: 768Mi
+            limits:
+              cpu: 1500m
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cylinder-service
+  labels:
+    app.kubernetes.io/name: cylinder-service
+    app.kubernetes.io/component: application
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: cylinder-service
+  ports:
+    - name: http
+      port: 8087
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cylinder-service-nodeport
+  labels:
+    app.kubernetes.io/name: cylinder-service
+    app.kubernetes.io/component: application
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: cylinder-service
+  ports:
+    - name: http
+      port: 8087
+      targetPort: http
+      nodePort: 30087
+      protocol: TCP
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# fleet-device-service — 8088 — postgres-fleet/gpl_fleet_db
+# The one client of the TimescaleDB instance (postgres-fleet).
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fleet-device-service-config
+  labels:
+    app.kubernetes.io/name: fleet-device-service
+    app.kubernetes.io/component: application
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-fleet:5432/gpl_fleet_db"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  # The gateway forwards the caller's full permission set as the
+  # X-User-Permissions request header. With permissions correctly seeded there
+  # are 187 codes, which is ~5 KB -- over Tomcat's 8 KB default
+  # max-http-request-header-size, so every gateway request failed with a bare
+  # 400 "Request header is too large". Raise the ceiling to 64 KB.
+  SERVER_MAX_HTTP_REQUEST_HEADER_SIZE: "65536"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-device-service
+  labels:
+    app.kubernetes.io/name: fleet-device-service
+    app.kubernetes.io/component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-device-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fleet-device-service
+        app.kubernetes.io/component: application
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: fleet-device-service
+          image: csph/gpl-fleet-device-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8088
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: jvm-common
+            - configMapRef:
+                name: fleet-device-service-config
+            - secretRef:
+                name: gpl-app-credentials
+          readinessProbe:
+            tcpSocket:
+              port: 8088
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 20
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8088
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 400m
+              memory: 768Mi
+            limits:
+              cpu: 1500m
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fleet-device-service
+  labels:
+    app.kubernetes.io/name: fleet-device-service
+    app.kubernetes.io/component: application
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: fleet-device-service
+  ports:
+    - name: http
+      port: 8088
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fleet-device-service-nodeport
+  labels:
+    app.kubernetes.io/name: fleet-device-service
+    app.kubernetes.io/component: application
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: fleet-device-service
+  ports:
+    - name: http
+      port: 8088
+      targetPort: http
+      nodePort: 30088
+      protocol: TCP
+
+---
+# ───────────────────────────────────────────────────────────────────────────
+# subsidy-service — 8089 — postgres-subsidy/gpl_subsidy_db
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: subsidy-service-config
+  labels:
+    app.kubernetes.io/name: subsidy-service
+    app.kubernetes.io/component: application
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-subsidy:5432/gpl_subsidy_db"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  # The gateway forwards the caller's full permission set as the
+  # X-User-Permissions request header. With permissions correctly seeded there
+  # are 187 codes, which is ~5 KB -- over Tomcat's 8 KB default
+  # max-http-request-header-size, so every gateway request failed with a bare
+  # 400 "Request header is too large". Raise the ceiling to 64 KB.
+  SERVER_MAX_HTTP_REQUEST_HEADER_SIZE: "65536"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subsidy-service
+  labels:
+    app.kubernetes.io/name: subsidy-service
+    app.kubernetes.io/component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: subsidy-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: subsidy-service
+        app.kubernetes.io/component: application
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: subsidy-service
+          image: csph/gpl-subsidy-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8089
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: jvm-common
+            - configMapRef:
+                name: subsidy-service-config
+            - secretRef:
+                name: gpl-app-credentials
+          readinessProbe:
+            tcpSocket:
+              port: 8089
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 20
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8089
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 400m
+              memory: 768Mi
+            limits:
+              cpu: 1500m
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: subsidy-service
+  labels:
+    app.kubernetes.io/name: subsidy-service
+    app.kubernetes.io/component: application
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: subsidy-service
+  ports:
+    - name: http
+      port: 8089
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: subsidy-service-nodeport
+  labels:
+    app.kubernetes.io/name: subsidy-service
+    app.kubernetes.io/component: application
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: subsidy-service
+  ports:
+    - name: http
+      port: 8089
+      targetPort: http
+      nodePort: 30089
+      protocol: TCP

@@ -1,0 +1,46 @@
+$kind: http-request
+name: POST :8084/api/v1/audit/ingest  (RAW event, NOT enveloped)
+description: |-
+  **audit-service on :8084**, no security headers - the ingest endpoint declares no identity header at all.
+
+  **The body is a RAW `AuditEvent`, not wrapped in an `ApiResponse` envelope.** This is the one write endpoint in the
+  platform that takes a bare domain object; the response is enveloped as usual.
+
+  `AuditEvent` is what every microservice publishes on the broker after a write, and audit-service consumes it into
+  `EntityModification` + `FieldChange` rows. This endpoint is the synchronous equivalent - useful for replaying events
+  and for testing ingestion without a broker.
+
+  The field is `actionDescription`; note that `AuthService` sends `description` instead, and both exist on the DTO -
+  another small inconsistency in the same audit surface. Both are sent here so the event is complete either way.
+url: "{{auditService}}/api/v1/audit/ingest"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "entityType": "ORGANIZATION",
+      "entityId": "{{orgId}}",
+      "entityName": "Postman Direct Org {{uniq}}",
+      "action": "UPDATE",
+      "actionDescription": "Direct-port ingest probe",
+      "description": "Emitted by csph-services-direct on :8084",
+      "module": "ORGANIZATION",
+      "changeby": "{{personId}}",
+      "changedate": "{{nowIso}}",
+      "changes": [
+        { "fieldName": "status", "fieldLabel": "Statut", "oldValue": "INACTIVE", "newValue": "ACTIVE", "valueType": "STRING" }
+      ],
+      "deviceInfo": "Postman-direct",
+      "ipAddress": "127.0.0.1"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('ingest acknowledged', function () { pm.expect(String(j.message)).to.include('ingested'); });
+    language: text/javascript
+order: 4000

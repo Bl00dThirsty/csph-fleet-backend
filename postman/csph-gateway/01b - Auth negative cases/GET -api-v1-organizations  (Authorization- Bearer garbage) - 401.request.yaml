@@ -1,0 +1,30 @@
+$kind: http-request
+name: "GET /api/v1/organizations  (Authorization: Bearer garbage) -> 401"
+description: |-
+  Well-formed `Bearer ` prefix, junk token. The header passes the `startsWith('Bearer ')` check, then
+  `Jwts.parser().verifyWith(...)` throws and the filter answers 401 `Invalid JWT Token`.
+
+  This is also what `Bearer {{accessToken}}` produces while `accessToken` is still empty - i.e. running this folder
+  before `01 - Auth` lands here too. That is intentional: it means an un-run collection fails with a clear 401 rather
+  than a confusing 500.
+url: "{{gateway}}/api/v1/organizations"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('401 Unauthorized', function () { pm.expect(pm.response.code).to.eql(401); });
+      pm.test('body is PLAIN TEXT, not a JSON envelope', function () {
+          const t = pm.response.text();
+          pm.expect(t).to.be.a('string');
+          pm.expect(t.trim().length).to.be.above(0);
+          pm.expect(t.trim().charAt(0), 'the gateway writes raw bytes, not JSON').to.not.eql('{');
+      });pm.test('reason is Invalid JWT Token', function () {
+          pm.expect(pm.response.text()).to.include('Invalid JWT Token');
+      });
+    language: text/javascript
+order: 2000

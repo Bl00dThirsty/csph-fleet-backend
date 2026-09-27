@@ -1,0 +1,27 @@
+$kind: http-request
+name: GET /roles/  (TRAILING SLASH - enveloped array)
+description: |-
+  The full role list. Despite looking like the paged `/persons/` and `/organizations/` endpoints, this one is
+  `ApiResponse<List<RoleResponse>>` - an **enveloped array, not a `PageResponse`**. Same for `/groups/` and
+  `/permissions/`.
+
+  Trailing slash required (`@GetMapping("/")`).
+url: "{{gateway}}/api/v1/roles/"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array (NOT a PageResponse)', function () { pm.expect(j.data).to.be.an('array'); });
+      console.log('roles:', j.data.map(function (r) { return r.code; }).join(', '));
+    language: text/javascript
+order: 16000

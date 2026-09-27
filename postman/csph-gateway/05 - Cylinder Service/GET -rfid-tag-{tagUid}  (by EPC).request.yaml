@@ -1,0 +1,34 @@
+$kind: http-request
+name: GET /rfid/tag/{tagUid}  (by EPC)
+description: |-
+  By **EPC / tag UID** - which is how the handheld reader addresses a tag: it reads the EPC and asks "what is this?",
+  never "what is the id of the row whose id I already know".
+
+  `{{tagUid}}` was captured by the `POST /rfid` request above. It is empty on a cold run, in which case the path
+  degenerates to `/rfid/tag/` and 404s - tolerated by the test.
+url: "{{gateway}}/api/v1/rfid/tag/{{tagUid}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 with the tag, or 404 when tagUid is empty / unknown', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 404]);
+      });
+      const j = pm.response.json();
+      if (pm.response.code === 200) {
+          pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+          pm.test('tagUid echoed', function () {
+              pm.expect(j.data.tagUid).to.eql(pm.collectionVariables.get('tagUid'));
+          });
+      } else {
+          console.log('404 - tagUid is empty or unknown. Run POST /rfid first.');
+      }
+    language: text/javascript
+order: 9000

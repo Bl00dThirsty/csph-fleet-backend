@@ -1,0 +1,51 @@
+$kind: http-request
+name: POST /organizations  (unique code -> re-runnable)
+description: |-
+  `CreateOrganizationRequest` requires `code`, `name`, `type`, `tier` (all `@NotBlank`). `Organization.code` is
+  `UNIQUE`, so a fixed literal 409s on the second run - the code is `TST-{{uniq}}`, regenerated per request by the
+  collection pre-request script. That single change is what makes the whole collection re-runnable.
+
+  `type` is the `OrganizationType` code (`REG`, `DEP`, `MKT`, `TRP`, `CLT`, `INT`, `PLT`); `tier` is the
+  `OrganizationTier` name (`TIER_1_GOVERNANCE` ... `TIER_4_CONSUMPTION`). Both columns are free-form strings.
+
+  `X-User-PersonId` is a **required** `@RequestHeader` on this method (no `required = false`), so omitting it is a
+  400 from `MissingRequestHeaderException` - not a 403 from the permission aspect. That distinction matters when
+  triaging failures: a 400 here is a malformed request, a 403 is a missing permission.
+
+  This request **overwrites** `orgId`, so the requests after it operate on the throwaway org and the `DELETE` at the
+  end of the folder cleans up after them.
+url: "{{gateway}}/api/v1/organizations"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "code": "TST-{{uniq}}",
+      "name": "Postman Test Org {{uniq}}",
+      "description": "Created by the csph-gateway Postman collection",
+      "type": "MKT",
+      "tier": "T3",
+      "contactEmail": "pm-{{uniq}}@cspHq.cm",
+      "contactPhone": "+237699000000",
+      "website": "https://csph.cm/{{uniq}}",
+      "isHeadquarters": false
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('new id captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+      });
+      pm.test('code round-trips', function () {
+          pm.expect(j.data.code).to.eql('TST-' + pm.collectionVariables.get('uniq'));
+      });
+      pm.collectionVariables.set('orgId', j.data.id);
+    language: text/javascript
+order: 3000

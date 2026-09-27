@@ -1,0 +1,29 @@
+$kind: http-request
+name: PATCH /persons/{personIdNew}/status
+description: |-
+  The same `{newStatus, reason}` status-lifecycle body as organizations and sites - `UpdateStatusRequest` is duplicated
+  across three modules with an identical contract, and the `PATCH /{id}/status` route shape is the platform convention.
+
+  The person was created in this same run, so marking it `INACTIVE` breaks nothing downstream.
+url: "{{gateway}}/api/v1/persons/{{personIdNew}}/status"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "newStatus": "INACTIVE",
+      "reason": "Postman status-lifecycle probe"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('status is now INACTIVE', function () { pm.expect(j.data.status).to.eql('INACTIVE'); });
+    language: text/javascript
+order: 8000

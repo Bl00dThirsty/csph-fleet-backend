@@ -1,0 +1,40 @@
+$kind: http-request
+name: POST /persons/{personIdNew}/roles
+description: |-
+  `AssignRoleRequest` requires `personId` **and** `roleId` (`@NotBlank`), and `personId` is the **business key** -
+  even though the controller overwrites it with the value it resolves. `@Valid` runs at binding time, *before* the
+  controller body, so leaving `personId` out of the JSON is a 400 even though the server would have filled it in.
+
+  `roleId` comes from the bootstrap `GET /roles/` at the top of this folder. `siteId` scopes the grant to a single
+  site; omit it for an organisation-wide grant.
+url: "{{gateway}}/api/v1/persons/{{personIdNew}}/roles"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "personId": "{{personIdLogin}}",
+      "roleId": "{{roleId}}",
+      "siteId": "{{siteId}}",
+      "validFrom": "{{periodStart}}",
+      "validUntil": "{{periodEnd}}",
+      "isPrimary": true
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 assigned, or 409 if already granted', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 201, 409]);
+      });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('assignment references the role we granted', function () {
+          pm.expect(j.data.roleId).to.eql(pm.collectionVariables.get('roleId'));
+      });
+      pm.test('assignment is primary', function () { pm.expect(j.data.isPrimary).to.eql(true); });
+    language: text/javascript
+order: 12000
