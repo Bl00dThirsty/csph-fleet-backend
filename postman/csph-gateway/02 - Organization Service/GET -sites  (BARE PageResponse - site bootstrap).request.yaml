@@ -1,0 +1,44 @@
+$kind: http-request
+name: GET /sites  (BARE PageResponse - site bootstrap)
+description: |-
+  Like `/organizations`, this returns a **bare** `PageResponse` - no `success` envelope.
+
+  Captures `siteId` (row 0) and `siteIdDest` (row 1, falling back to `siteId`). Both are consumed downstream: `siteId`
+  by the person-site assignment in folder `03` and by the checkpoint in folder `04`; `siteIdDest` as the pickup
+  destination in folder `04`.
+
+  **`siteId` here is the primary key, not the business key.** Seeded business keys are `SITE-CSPH-HQ`,
+  `SITE-DEP-DLA-PRINCIPAL`, `SITE-DEP-DLA-FIL`, `SITE-DEP-YDE-PRINCIPAL`, `SITE-MKT-GPL-ENTREPOT`,
+  `SITE-TRP-ABC-DEPOT`, `SITE-CLT-IND-RECEPTION` (exposed as the `siteCode*` environment variables). The
+  `{id}` path variable wants the UUID.
+url: "{{gateway}}/api/v1/sites?size=100"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  size: "100"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const d = pm.response.json();
+      pm.test('BARE PageResponse - no success envelope', function () {
+          pm.expect(d).to.be.an('object');
+          pm.expect(d).to.not.have.property('success');
+      });
+      pm.test('page metadata present', function () { pm.expect(d).to.have.property('totalCount'); });
+      const items = d.content || d.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+      pm.test('at least one site', function () { pm.expect(items.length).to.be.above(0); });
+      if (items[0]) {
+          pm.collectionVariables.set('siteId', items[0].id);
+          pm.collectionVariables.set('siteIdDest', (items[1] || items[0]).id);
+          console.log('siteId=' + items[0].id + ' (' + items[0].siteId + ') siteIdDest=' + ((items[1] || items[0]).id));
+      }
+    language: text/javascript
+order: 8000

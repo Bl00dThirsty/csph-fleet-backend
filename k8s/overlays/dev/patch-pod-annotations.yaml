@@ -1,0 +1,145 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# dev-only pod annotations.
+#
+# Applied to every Deployment in the base (see kustomization.yaml: patches with
+# target kind=Deployment). Strategic-merge, so one document per workload is
+# required — a patch without metadata.name cannot be applied through a target.
+#
+# `csph.gpl.dev/log-hint` puts the exact `kubectl logs` command for that
+# workload on the pod, which is what you actually want at 2am when the
+# gateway is returning 503 and you are grepping nine Deployments by hand.
+# Nothing here changes runtime behaviour: no image, no replica count, no
+# resources, no probe. The base already pins imagePullPolicy=IfNotPresent, so
+# there is no pull-policy patch to make either.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery-server
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/discovery-server --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/api-gateway --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/auth-service --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: organization-service
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/organization-service --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/user-service --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-service
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/audit-service --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/notification-service --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tour-service
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/tour-service --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cylinder-service
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/cylinder-service --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-device-service
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/fleet-device-service --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subsidy-service
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/subsidy-service --tail=200 -f"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+spec:
+  template:
+    metadata:
+      annotations:
+        csph.gpl.dev/environment: "dev"
+        csph.gpl.dev/log-hint: "kubectl logs -n csph-gpl deploy/mailpit --tail=200 -f"

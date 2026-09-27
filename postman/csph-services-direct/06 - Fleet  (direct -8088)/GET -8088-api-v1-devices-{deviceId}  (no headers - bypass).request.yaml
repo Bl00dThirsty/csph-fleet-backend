@@ -1,0 +1,23 @@
+$kind: http-request
+name: GET :8088/api/v1/devices/{deviceId}  (no headers - bypass)
+description: |-
+  **fleet-device-service on :8088**, no security headers, so `fleet.devices.read` is bypassed.
+
+  `lastLatitude` / `lastLongitude` / `lastSync` are the cached position, deliberately separate from the telemetry
+  history: a device that stopped reporting looks identical to a stationary one unless you check `lastSync`.
+url: "{{fleetService}}/api/v1/devices/{{deviceId}}"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('deviceId')); });
+    language: text/javascript
+order: 6000

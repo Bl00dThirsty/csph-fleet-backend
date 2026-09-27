@@ -1,0 +1,24 @@
+$kind: http-request
+name: DELETE /tours/{tourId}  (run LAST in this folder)
+description: |-
+  **Last request in folder `04`**, so every state transition above has been exercised before the tour is removed.
+  Like the organization delete, the tour delete is a **soft delete** (`deleted_at` is a column on `delivery_tours`),
+  so re-runs do not collide on `tourCode` either way - the `{{uniq}}` code is belt and braces.
+url: "{{gateway}}/api/v1/tours/{{tourId}}"
+method: DELETE
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('envelope success on a soft delete', function () { pm.expect(j.success).to.eql(true); });
+    language: text/javascript
+order: 24000

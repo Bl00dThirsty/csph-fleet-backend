@@ -1,0 +1,27 @@
+$kind: http-request
+name: PATCH :8083/api/v1/persons/{personIdNew}/status  (no headers needed)
+description: |-
+  **user-service on :8083**, no security headers - `PERSON_UPDATE` is bypassed.
+
+  Same `{newStatus, reason}` contract as the organization call in folder `02`; the `UpdateStatusRequest` class name
+  recurs in both modules with a matching shape.
+url: "{{userService}}/api/v1/persons/{{personIdNew}}/status"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "newStatus": "INACTIVE",
+      "reason": "Direct-port status probe"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('status is now INACTIVE', function () { pm.expect(j.data.status).to.eql('INACTIVE'); });
+    language: text/javascript
+order: 5000

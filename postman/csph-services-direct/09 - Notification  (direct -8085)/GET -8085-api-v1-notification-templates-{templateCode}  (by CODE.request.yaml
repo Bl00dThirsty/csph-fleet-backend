@@ -1,0 +1,31 @@
+$kind: http-request
+name: GET :8085/api/v1/notification-templates/{templateCode}  (by CODE, not UUID)
+description: |-
+  **notification-service on :8085**, no security headers.
+
+  Addressed by **business `code`** - there is no `/{id}` route in this controller, so a UUID here is a guaranteed 404.
+  `{{templateCode}}` is captured by the create request above and is empty on a cold run, which the test tolerates.
+url: "{{notifService}}/api/v1/notification-templates/{{templateCode}}"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 with the template, or 404 when templateCode is empty / unknown', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 404]);
+      });
+      const j = pm.response.json();
+      if (pm.response.code === 200) {
+          pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+          pm.test('code round-trips', function () {
+              pm.expect(j.data.code).to.eql(pm.collectionVariables.get('templateCode'));
+          });
+      } else {
+          console.log('404 - templateCode is empty or unknown. Run the create request first.');
+      }
+    language: text/javascript
+order: 3000

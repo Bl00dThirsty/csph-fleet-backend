@@ -1,5 +1,10 @@
+FROM maven:3.9.9-eclipse-temurin-21-alpine AS build
+WORKDIR /app
+COPY . .
+RUN mvn clean package -DskipTests -Dmaven.wagon.http.retryHandler.count=5 -pl common-lib,subsidy-service -am
+
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY subsidy-service/target/subsidy-service-1.0.0-SNAPSHOT.jar app.jar
+COPY --from=build /app/subsidy-service/target/*.jar app.jar
 EXPOSE 8089
 ENTRYPOINT ["java", "-jar", "app.jar"]

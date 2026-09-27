@@ -1,0 +1,39 @@
+$kind: http-request
+name: GET :8083/api/v1/persons/  (TRAILING SLASH, no headers - bypass)
+description: |-
+  **user-service on :8083**, no security headers, so `PERSON_VIEW` is bypassed.
+
+  **The trailing slash is required** - `PersonController` is `@GetMapping("/")`, and `/api/v1/persons` without it is a
+  404 even on the direct port.
+
+  **Bare `PageResponse`.** Resolves the logged-in user by business key and stores the **UUID** into `personIdNew`,
+  because every `/persons/{id}/...` path variable below wants the UUID while the `personId` variable holds a business
+  key (`superadmin.cspHq`).
+url: "{{userService}}/api/v1/persons/?size=100"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  size: "100"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK - permission check was bypassed', function () { pm.expect(pm.response.code).to.eql(200); });
+      const d = pm.response.json();
+      pm.test('BARE PageResponse - no success envelope', function () {
+          pm.expect(d).to.be.an('object');
+          pm.expect(d).to.not.have.property('success');
+      });
+      const items = d.content || d.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+      pm.test('at least one person', function () { pm.expect(items.length).to.be.above(0); });
+      const me = items.find(function (p) { return p.personId === pm.collectionVariables.get('personId'); }) || items[0];
+      pm.test('has a UUID primary key', function () { pm.expect(me.id).to.match(/^[0-9a-f-]{36}$/i); });
+      pm.collectionVariables.set('personIdNew', me.id);
+      pm.collectionVariables.set('personIdLogin', me.personId);
+      console.log('personIdNew=' + me.id + ' personIdLogin=' + me.personId);
+    language: text/javascript
+order: 1000

@@ -1,0 +1,29 @@
+$kind: http-request
+name: PATCH /sites/{siteId}/status
+description: |-
+  Same `{newStatus, reason}` contract as the organization call, but the site status column is a **closed enum**:
+  `UNASSIGNED`, `ASSIGNED`, `ACTIVE`, `VERIFIED`, `SUSPENDED`, `REJECTED` (`SiteStatusEnum`). An unrecognised value
+  would fail at the database rather than at a bean validation, which is a worse failure mode - so the value is drawn
+  from the enum.
+url: "{{gateway}}/api/v1/sites/{{siteId}}/status"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "newStatus": "SUSPENDED",
+      "reason": "Postman status-lifecycle probe"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('status is now SUSPENDED', function () { pm.expect(j.data.status).to.eql('SUSPENDED'); });
+    language: text/javascript
+order: 12000

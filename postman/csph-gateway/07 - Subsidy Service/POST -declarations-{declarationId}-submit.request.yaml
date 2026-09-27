@@ -1,0 +1,32 @@
+$kind: http-request
+name: POST /declarations/{declarationId}/submit
+description: |-
+  Hands the declaration to the regulator: `DRAFT -> SUBMITTED`. No body, no parameters.
+
+  Every subsequent action (review, approve, reject) is only legal from `SUBMITTED`, so folder order is load-bearing
+  here in a way it is not for a simple CRUD resource.
+url: "{{gateway}}/api/v1/declarations/{{declarationId}}/submit"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('submit rejected by the declaration state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 5000

@@ -1,0 +1,29 @@
+$kind: http-request
+name: port 8081  auth-service  ->  /api/v1/me
+description: |-
+  Direct probe of **auth-service** on its own port (8081) - the in-cluster equivalent of
+  `http://csph/gpl-auth-service/api/v1/me`.
+
+  Sent with **no security headers at all**, which is the point of this collection: `PermissionAspect` finds no
+  `GplSecurityContext` and passes the call straight through, so a `200` here proves both that the port is open and
+  that the permission check was bypassed.
+
+  - `200` - reachable, and the endpoint is genuinely open (or the check was skipped)
+  - `401` - reachable, and the endpoint genuinely requires a caller (`/api/v1/me` without `X-User-PersonId`, for example)
+  - `404` - reachable, but that path is not mapped in this service
+url: "{{authService}}/api/v1/me"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('service answers on port 8081', function () {
+          pm.expect(pm.response.code, 'connection refused - the service is not running on 8081').to.be.oneOf([200, 401, 404]);
+      });
+      console.log('auth-service :' + 8081 + ' -> HTTP ' + pm.response.code);
+    language: text/javascript
+order: 1000

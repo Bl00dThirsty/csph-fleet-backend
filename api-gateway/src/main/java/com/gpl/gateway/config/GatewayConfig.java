@@ -44,6 +44,9 @@ public class GatewayConfig {
                 .route("auth-service", r -> r.path("/api/v1/auth/**")
                         .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                         .uri("lb://auth-service"))
+                .route("auth-service-me", r -> r.path("/api/v1/me/**")
+                        .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                        .uri("lb://auth-service"))
                 // Organization endpoints
                 .route("organization-service-orgs", r -> r.path("/api/v1/organizations/**")
                         .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
@@ -109,6 +112,9 @@ public class GatewayConfig {
                         .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                         .uri("lb://fleet-device-service"))
                 .route("fleet-device-service-devices", r -> r.path("/api/v1/devices/**")
+                        .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                        .uri("lb://fleet-device-service"))
+                .route("fleet-device-service-telemetry", r -> r.path("/api/v1/telemetry/**")
                         .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                         .uri("lb://fleet-device-service"))
                 // Tour endpoints

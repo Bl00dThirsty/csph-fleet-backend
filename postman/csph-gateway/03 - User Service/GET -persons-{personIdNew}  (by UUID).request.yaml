@@ -1,0 +1,30 @@
+$kind: http-request
+name: GET /persons/{personIdNew}  (by UUID)
+description: |-
+  `{id}` is the **UUID primary key**, not the business key. Passing `superadmin.cspHq` here 404s - use
+  `/persons/by-person-id/{businessKey}` for that. The pairing of those two routes is the most common 404 in this API.
+
+  Enveloped `ApiResponse<PersonResponse>` - the richest person payload available: names, contact details, address,
+  org/site scope, avatar, plus the nested `phones` / `emails` collections that the dedicated sub-resources return.
+url: "{{gateway}}/api/v1/persons/{{personIdNew}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('personIdNew')); });
+      pm.test('name present', function () {
+          pm.expect(j.data.firstName).to.be.a('string');
+          pm.expect(j.data.lastName).to.be.a('string');
+      });
+    language: text/javascript
+order: 4000

@@ -1,0 +1,64 @@
+$kind: http-request
+name: GET /organizations  (BARE PageResponse - org bootstrap)
+description: |-
+  `OrganizationController.listOrganizations` returns `PageResponse<OrganizationSummaryResponse>` **directly**, not
+  wrapped in `ApiResponse` - so there is no `success` key. That asymmetry is per-controller, and this is the
+  canonical example of it.
+
+  This request is also the suite's organization bootstrap. It captures:
+
+  * `orgId` - row 0's UUID, used by everything else in this folder
+  * `marketerOrgId`, `transporterOrgId`, `clientOrgId` - needed by folders `04` and `07`
+
+  The role matching is deliberately lenient. Depending on which seeder won, `type` holds either the enum **code**
+  (`MKT` / `TRP` / `CLT`, from `DataInitializer`) or the enum **name** (`MARKETEUR` / `TRANSPORTEUR` / `CLIENT`, from
+  the Flyway seed), so both spellings are accepted, with a fallback to `orgId` so even a sparse database produces a
+  runnable suite.
+url: "{{gateway}}/api/v1/organizations?size=100"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  size: "100"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const d = pm.response.json();
+      pm.test('BARE PageResponse - no success envelope', function () {
+          pm.expect(d).to.be.an('object');
+          pm.expect(d).to.not.have.property('success');
+      });
+      pm.test('page metadata present', function () {
+          pm.expect(d).to.have.property('totalCount');
+          pm.expect(d).to.have.property('pageNumber');
+      });
+      const items = d.content || d.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+      pm.test('at least one organization', function () { pm.expect(items.length).to.be.above(0); });
+
+      const byType = function (needles) {
+          return items.find(function (o) {
+              const t = String(o.type || '').toUpperCase();
+              return needles.some(function (n) { return t.indexOf(n) >= 0; });
+          });
+      };
+      const first = items[0];
+      const mkt = byType(['MKT', 'MARKETEUR']);
+      const trp = byType(['TRP', 'TRANSPORTEUR']);
+      const clt = byType(['CLT', 'CLIENT']);
+      if (first) { pm.collectionVariables.set('orgId', first.id); }
+      pm.collectionVariables.set('marketerOrgId', (mkt || first || {}).id || '');
+      pm.collectionVariables.set('transporterOrgId', (trp || first || {}).id || '');
+      pm.collectionVariables.set('clientOrgId', (clt || first || {}).id || '');
+      console.log('orgId=' + ((first || {}).id)
+          + ' | marketer=' + ((mkt || {}).id)
+          + ' | transporter=' + ((trp || {}).id)
+          + ' | client=' + ((clt || {}).id));
+    language: text/javascript
+order: 1000

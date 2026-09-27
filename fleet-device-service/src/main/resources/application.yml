@@ -14,7 +14,12 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.spatial.dialect.postgis.PostgisDialect
+        # Hibernate 6 renamed the PostGIS dialects. There is no
+        # org.hibernate.spatial.dialect.postgis.PostgisDialect in hibernate-spatial
+        # 6.x (that was the Hibernate 5 name), so pointing at it made every pod
+        # die with ClassNotFoundException at startup. PostgisPG10Dialect is the
+        # class that actually exists and is the right one for PostgreSQL 10+.
+        dialect: org.hibernate.spatial.dialect.postgis.PostgisPG10Dialect
 
 eureka:
   client:

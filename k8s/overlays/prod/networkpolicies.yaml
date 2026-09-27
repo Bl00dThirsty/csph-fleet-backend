@@ -1,0 +1,528 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# NetworkPolicy — default-deny, then the five flows the platform actually needs.
+#
+# ⚠⚠ THIS FILE IS INERT UNLESS THE CNI ENFORCES NETWORKPOLICY. ⚠⚠
+#   The kind cluster `csph-gpl` runs **kindnetd** (verified:
+#   `kubectl get pods -n kube-system` shows `kindnet-hxhcc`). kindnetd has no
+#   policy engine: the API server accepts every NetworkPolicy object, stores
+#   it, and kindnetd ignores it entirely. Every rule below will look applied
+#   and protect nothing.
+#
+#   Proof, not assumption — after applying, deliberately break something and
+#   check it is still reachable:
+#       kubectl -n csph-gpl exec deploy/auth-service -- \
+#         wget -qO- --timeout=3 http://audit-service:8084/v3/api-docs | head -1
+#   With policies enforced that must FAIL (auth-service may not reach
+#   audit-service). On kindnetd it will SUCCEED, and these policies are
+#   documentation rather than enforcement.
+#
+#   Production CNIs that DO enforce: Calico, Cilium, Antrea, and
+#   kube-router. On a managed cluster (EKS/GKE/AKS) it is on by default.
+#   To make a kind cluster enforce them, replace kindnetd with Calico:
+#       kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
+#       kubectl -n kube-system delete pod -l k8s-app=kindnet  # on older kind
+#   (Or create a second kind cluster with `disableDefaultCNI: true` in
+#   k8s/kind-cluster.yaml — but that file is out of scope for this change.)
+#
+# ═══ THE LAYERS, IN ORDER ═════════════════════════════════════════════════
+#
+#  1. default-deny-ingress     — nothing gets in, from anywhere, initially
+#  2. allow-kubelet-probes     — the rule that keeps the cluster ALIVE (see
+#                                the long explanation below; it is not optional)
+#  3. allow-gateway-to-services— (a) api-gateway -> the 10 JVM workloads
+#  4. allow-<svc>-to-<db>  x9  — (b) each service -> ONLY its own database
+#  5. allow-clients-to-eureka  — (c) the 9 services + gateway -> discovery
+#  6. allow-notification-to-mailpit — (e) mailpit <- notification-service ONLY
+#  7. allow-dns-egress         — (d) DNS, for everything
+#
+# There is no rule for "postgres -> postgres" and none is wanted: each database
+# is a private island.
+#
+# ═══ 2. WHY allow-kubelet-probes IS NOT OPTIONAL ══════════════════════════
+# A namespace-wide default-deny INGRESS policy silently breaks every health
+# probe, because probe traffic does not come from a pod — it comes from the
+# kubelet on the node, whose source address is the NODE IP, which no pod
+# selector matches. The symptom is specific and deeply misleading:
+#
+#     every pod  CrashLoopBackOff / 0/1 Ready
+#     "Readiness probe failed: dial tcp 10.244.0.55:8081: connect: connection refused"
+#
+# …and the container is listening perfectly well. The connection is being
+# refused BY THE NETWORK, not by the application. An operator will spend an
+# hour looking for a Spring Boot misconfiguration that does not exist.
+#
+# The rule therefore has to admit the kubelet. It cannot be written as a
+# podSelector, because the kubelet is not a pod. The standard form is
+# "everything except the cluster's own pod CIDR", because real traffic is
+# pod-to-pod (already covered by the allow rules above) and node-originated
+# traffic is not.
+#
+# WHAT THAT COSTS, STATED PLAINLY:
+#   Because these services use a tcpSocket probe on the SAME port they serve,
+#   there is no way to admit the kubelet on 8081-8089 without also admitting
+#   anything else that can reach the node on those ports. In other words this
+#   rule re-exposes the 9 services' NodePorts to the network.
+#
+#   PostgreSQL (5432) and mailpit (8025) are NOT in this rule's port list, and
+#   they need no entry: their probes are `exec` probes (pg_isready), which
+#   run inside the container and are not network traffic, so a NetworkPolicy
+#   cannot block them. That is why the 9 database host ports and the mailpit
+#   web UI stay CLOSED under this overlay. On prod, k8s/scripts/debug.sh
+#   correctly reports host ports 5500-5508 and 8026 as unreachable. That is
+#   the security posture working.
+#
+#   To close 8081-8089 as well, delete the nine `<svc>-nodeport` Services —
+#   they are in k8s/base/services.yaml, which is out of scope for this
+#   overlay — or firewall the node. Both are on the pre-production checklist
+#   in NOTES.md. This is the single most important unresolved item here.
+#
+#   The CIDRs below are this cluster's. Find yours with:
+#       kubectl get nodes -o jsonpath='{.items[*].spec.podCIDR}'
+#       kubectl get svc kubernetes -n default \
+#         -o jsonpath='{.spec.clusterIP}'      # then widen to the /12
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── 1  default deny ─────────────────────────────────────────────────────────
+# policyTypes: [Ingress] ONLY. Egress is deliberately not denied: a
+# namespace-wide egress default-deny is a much larger change than it looks
+# (it breaks the JVM's outbound DNS, NTP, telemetry, and anything a library
+# does on its own), and it is not what was asked for. Rule 7 pre-authorises
+# DNS so that adding a default-deny-egress later is a one-line change.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# ── 2  kubelet probes ───────────────────────────────────────────────────────
+# No podSelector restriction: EVERY workload in the namespace is probed, and a
+# policy that misses one workload leaves that one pod permanently NotReady.
+# Ports are the tcpSocket/httpGet probe ports only: 8080-8089 and 8761.
+# 5432 is absent on purpose and 1025/8025 are absent on purpose — see the
+# header.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kubelet-probes
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              # the pod CIDR: real pod-to-pod traffic is governed by the
+              # named allow rules below, not by this catch-all
+              - 10.244.0.0/16
+              # the service CIDR: ClusterIP traffic is likewise governed by
+              # the named rules
+              - 10.96.0.0/12
+      ports:
+        - protocol: TCP
+          port: 8080   # api-gateway
+        - protocol: TCP
+          port: 8081   # auth-service
+        - protocol: TCP
+          port: 8082   # organization-service
+        - protocol: TCP
+          port: 8083   # user-service
+        - protocol: TCP
+          port: 8084   # audit-service
+        - protocol: TCP
+          port: 8085   # notification-service
+        - protocol: TCP
+          port: 8086   # tour-service
+        - protocol: TCP
+          port: 8087   # cylinder-service
+        - protocol: TCP
+          port: 8088   # fleet-device-service
+        - protocol: TCP
+          port: 8089   # subsidy-service
+        - protocol: TCP
+          port: 8761   # discovery-server
+---
+# ── 3 (a)  api-gateway -> every JVM workload ────────────────────────────────
+# The gateway is the ONLY thing that reaches the services. A service reaching
+# another service directly is lateral movement and is denied, which is the
+# point: a compromised auth-service cannot query the user database.
+#
+# `from` is a POD selector on the gateway, which covers both traffic shapes:
+#   * to the ClusterIP  — kube-proxy DNATs it, source pod IP preserved
+#   * to a pod IP       — which is what Eureka actually hands the gateway,
+#                         because EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+#                         registers pod IPs (see k8s/base/services.yaml)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-services
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: application
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 8083
+        - protocol: TCP
+          port: 8084
+        - protocol: TCP
+          port: 8085
+        - protocol: TCP
+          port: 8086
+        - protocol: TCP
+          port: 8087
+        - protocol: TCP
+          port: 8088
+        - protocol: TCP
+          port: 8089
+---
+# api-gateway -> discovery-server is a separate policy only because
+# discovery-server is labelled component=infrastructure and the rule above
+# selects component=application. Without this, the gateway cannot fetch the
+# registry and every route 503s.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-eureka
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: discovery-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api-gateway
+      ports:
+        - protocol: TCP
+          port: 8761
+---
+# ── 4 (b)  each service -> ONLY its own database ────────────────────────────
+# Nine policies, one per database, each with a single `from`. Writing this as
+# ONE policy with nine `from` blocks and one port would allow
+# user-service -> postgres-audit, which is not least privilege and is exactly
+# the kind of thing an audit has to be able to state is impossible.
+#
+# This also covers the two headless variants: the StatefulSet is selected by
+# app.kubernetes.io/name, so a request to postgres-user, to
+# postgres-user-headless, or to the pod's own stable DNS name is the same
+# traffic and is allowed the same way.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-auth-service-to-postgres-auth
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-auth
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: auth-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-organization-service-to-postgres-org
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-org
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: organization-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-user-service-to-postgres-user
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-user
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: user-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-audit-service-to-postgres-audit
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-audit
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: audit-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-notification-service-to-postgres-notif
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-notif
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: notification-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-tour-service-to-postgres-tour
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-tour
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tour-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cylinder-service-to-postgres-cylinder
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-cylinder
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cylinder-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-fleet-device-service-to-postgres-fleet
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-fleet
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: fleet-device-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-subsidy-service-to-postgres-subsidy
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-subsidy
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: subsidy-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# ── 5 (c)  all 10 JVM workloads -> discovery-server ─────────────────────────
+# `from` is an empty podSelector, which selects EVERY pod in the namespace
+# including mailpit and the databases. That is deliberate: mailpit genuinely
+# has no business talking to Eureka, but a narrower selector would be a
+# 10-pod-list that has to be edited every time a service is added, and the
+# value being protected here (the registry) is not sensitive data.
+# Narrow it to a namespaceSelector+podSelector pair if an audit requires it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-clients-to-eureka
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: discovery-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8761
+---
+# ── 6 (e)  mailpit <- notification-service ONLY ─────────────────────────────
+# The strictest rule in the file, and the one with the clearest justification:
+# the SMTP sink must be reachable from exactly one workload. Any other pod
+# that can open a TCP connection to mailpit:1025 can make it relay arbitrary
+# mail, and the deployment's own note (k8s/base/mailpit.yaml) records that
+# the host ports 1025/8025 are already taken on this machine, so the mapping
+# was not chosen carelessly either.
+#
+# Consequence, stated here so it is not discovered as a surprise: the mailpit
+# WEB UI on host port 8026 is NOT reachable under this overlay. It is not in
+# allow-kubelet-probes (8025 is not a probe port) and it is not in this rule,
+# because this rule is notification-service only. A web UI for a mail sink has
+# no business being network-reachable in production. If an operator genuinely
+# needs it, add a rule with a source ipBlock restricted to the operator's
+# subnet — do not widen this one.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-notification-service-to-mailpit
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mailpit
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: notification-service
+      ports:
+        - protocol: TCP
+          port: 1025
+---
+# ── 7 (d)  DNS, for everything ─────────────────────────────────────────────
+# INERT TODAY, AND THAT IS THE POINT.
+#
+# Only the INGRESS namespace is default-denied, so egress is currently
+# unrestricted and this policy changes nothing. It is here so that adding
+#
+#     - policyTypes: [Egress]        to default-deny-ingress
+#
+# later is a one-line change rather than an outage. Without it, enabling
+# egress default-deny black-holes DNS and every hostname lookup in the
+# platform fails at once — including `discovery-server` and `postgres-user`,
+# which are reached BY NAME, not by IP.
+#
+# The namespaceSelector on kube-system plus the label on the pod is the
+# portable way to find the DNS service; `kube-dns` in some distributions and
+# `coredns` in others, so the pod label `k8s-app=kube-dns` is used rather than
+# a name. Both TCP and UDP 53 are listed because a large response falls back
+# from UDP to TCP.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  labels:
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

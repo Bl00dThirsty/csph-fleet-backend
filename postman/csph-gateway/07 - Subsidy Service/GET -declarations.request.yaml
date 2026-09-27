@@ -1,0 +1,31 @@
+$kind: http-request
+name: GET /declarations
+description: |-
+  Volume declarations - a marketer declares the volume it sold in a period, and that declaration is the starting point
+  of the subsidy chain. Enveloped `PageResponse`, filterable by `declaringOrganizationId`, `siteId`, `status`, `period`.
+
+  Lifecycle: `DRAFT -> SUBMITTED -> RECONCILED -> DISPUTED` (`DeclarationStatus`). The whole folder below walks one
+  declaration through those transitions.
+url: "{{gateway}}/api/v1/declarations?size=20"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  size: "20"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      const p = j.data || {};
+      pm.test('page metadata present', function () { pm.expect(p).to.have.property('totalCount'); });
+      const items = p.content || p.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+    language: text/javascript
+order: 1000

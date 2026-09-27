@@ -1,0 +1,29 @@
+$kind: http-request
+name: GET /sites/{siteId}
+description: |-
+  Single site, enveloped (`ApiResponse<SiteResponse>`).
+
+  Note that `SiteResponse` exposes **both** `id` (primary key) and `siteId` (business key) - that field-name collision
+  is why the path variables across this collection look inconsistent until you know to expect it.
+url: "{{gateway}}/api/v1/sites/{{siteId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('siteId')); });
+      pm.test('business key + name present', function () {
+          pm.expect(j.data.siteId).to.be.a('string');
+          pm.expect(j.data.name).to.be.a('string');
+      });
+    language: text/javascript
+order: 9000

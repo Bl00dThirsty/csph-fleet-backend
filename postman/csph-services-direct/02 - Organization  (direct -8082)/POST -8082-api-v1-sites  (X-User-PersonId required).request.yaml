@@ -1,0 +1,38 @@
+$kind: http-request
+name: POST :8082/api/v1/sites  (X-User-PersonId required)
+description: |-
+  **organization-service on :8082**, with `X-User-PersonId` (required `@RequestHeader`).
+
+  `CreateSiteRequest` requires `code`, `siteId`, `name`, `organizationId` and `type`. Two unique constraints -
+  `Site.code` and `(organizationId, name)` - hence `{{uniq}}` in **both** `code` and `name`.
+url: "{{orgService}}/api/v1/sites"
+method: POST
+headers:
+  Content-Type: application/json
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "code": "DIR-SITE-{{uniq}}",
+      "siteId": "DIR-{{uniq}}",
+      "name": "Postman Direct Depot {{uniq}}",
+      "organizationId": "{{orgId}}",
+      "type": "DEP",
+      "city": "Douala",
+      "region": "Littoral",
+      "latitude": 4.0511,
+      "longitude": 9.7679
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('siteId', j.data.id);
+      });
+    language: text/javascript
+order: 7000

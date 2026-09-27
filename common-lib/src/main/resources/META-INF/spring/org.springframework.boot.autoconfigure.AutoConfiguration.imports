@@ -1,1 +1,2 @@
 com.gpl.common.security.GplSecurityAutoConfiguration
+com.gpl.common.exception.GplExceptionHandlingAutoConfiguration

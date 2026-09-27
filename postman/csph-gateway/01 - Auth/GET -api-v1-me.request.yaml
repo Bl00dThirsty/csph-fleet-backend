@@ -1,0 +1,28 @@
+$kind: http-request
+name: GET /api/v1/me
+description: |-
+  `MeController.me` requires `X-User-PersonId`; through the gateway the `JwtAuthenticationFilter` injects it from the
+  JWT `sub` claim, so it is always present. Sending it by hand is belt-and-braces (and it matters in the direct-port
+  collection, where there is no gateway).
+
+  `roles` here is split straight out of the `X-User-Roles` header the gateway injected, so it mirrors what login returned.
+url: "{{gateway}}/api/v1/me"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('personId matches the token subject', function () { pm.expect(j.data.personId).to.eql(pm.collectionVariables.get('personId')); });
+      pm.test('username present', function () { pm.expect(j.data.username).to.be.a('string'); });
+      pm.test('roles array from X-User-Roles', function () { pm.expect(j.data.roles).to.be.an('array'); });
+    language: text/javascript
+order: 3000

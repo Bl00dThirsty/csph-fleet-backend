@@ -1,0 +1,117 @@
+name: csph-local
+values:
+  - key: gateway
+    value: 'http://localhost:8080'
+  - key: authService
+    value: 'http://localhost:8081'
+  - key: orgService
+    value: 'http://localhost:8082'
+  - key: userService
+    value: 'http://localhost:8083'
+  - key: auditService
+    value: 'http://localhost:8084'
+  - key: notifService
+    value: 'http://localhost:8085'
+  - key: tourService
+    value: 'http://localhost:8086'
+  - key: cylinderService
+    value: 'http://localhost:8087'
+  - key: fleetService
+    value: 'http://localhost:8088'
+  - key: subsidyService
+    value: 'http://localhost:8089'
+  - key: eureka
+    value: 'http://localhost:8761'
+  - key: mailhogWeb
+    value: 'http://localhost:8026'
+  - key: accessToken
+    value: ''
+  - key: refreshToken
+    value: ''
+  - key: personId
+    value: superadmin.cspHq
+  - key: username
+    value: superadmin.cspHq
+  - key: password
+    value: Password123!
+  - key: orgId
+    value: ''
+  - key: siteId
+    value: ''
+  - key: clientSiteId
+    value: ''
+  - key: personIdNew
+    value: ''
+  - key: roleId
+    value: ''
+  - key: groupId
+    value: ''
+  - key: tourId
+    value: ''
+  - key: checkpointId
+    value: ''
+  - key: pickupId
+    value: ''
+  - key: contractId
+    value: ''
+  - key: vehicleId
+    value: ''
+  - key: deviceId
+    value: ''
+  - key: cylinderId
+    value: ''
+  - key: rfidTagId
+    value: ''
+  - key: tagUid
+    value: ''
+  - key: scanEventId
+    value: ''
+  - key: declarationId
+    value: ''
+  - key: reconciliationId
+    value: ''
+  - key: redressementId
+    value: ''
+  - key: templateCode
+    value: ''
+  - key: personIdLogin
+    value: ''
+  - key: permissionId
+    value: ''
+  - key: marketerOrgId
+    value: ''
+  - key: transporterOrgId
+    value: ''
+  - key: clientOrgId
+    value: ''
+  - key: siteIdDest
+    value: ''
+  - key: uniq
+    value: ''
+  - key: authHeader
+    value: ''
+  - key: tokenType
+    value: Bearer
+  - key: expiresIn
+    value: ''
+  - key: nowIso
+    value: ''
+  - key: periodStart
+    value: ''
+  - key: periodEnd
+    value: ''
+  - key: dueDate
+    value: ''
+  - key: orgCodeCspHq
+    value: CSPH
+  - key: orgCodeMktGpl
+    value: MKT-GPL
+  - key: orgCodeTrpAbc
+    value: TRP-ABC
+  - key: siteCodeCspHq
+    value: SITE-CSPH-HQ
+  - key: siteCodeDepDla
+    value: SITE-DEP-DLA-PRINCIPAL
+  - key: siteCodeCltInd
+    value: SITE-CLT-IND-RECEPTION
+color: 60

@@ -1,0 +1,23 @@
+$kind: http-request
+name: GET :8083/api/v1/groups/  (TRAILING SLASH, no headers - bypass)
+description: |-
+  **user-service on :8083**, no security headers, so `GROUP_VIEW` is bypassed.
+
+  Enveloped **array**, trailing slash required. Groups are permission bundles used for a bulk grant instead of
+  per-person role assignment; `memberCount` is maintained denormalised on the row.
+url: "{{userService}}/api/v1/groups/"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array', function () { pm.expect(j.data).to.be.an('array'); });
+    language: text/javascript
+order: 11000

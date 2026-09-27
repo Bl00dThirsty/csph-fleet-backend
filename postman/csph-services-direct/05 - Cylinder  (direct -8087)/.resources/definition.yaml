@@ -1,0 +1,11 @@
+$kind: collection
+name: 05 - Cylinder  (direct :8087)
+description: |-
+  cylinder-service on **8087**, i.e. `http://csph/gpl-cylinder-service` in-cluster.
+
+  No security headers anywhere - every method here reads `X-User-PersonId` with `required = false`, so the audit field
+  falls back to null and `CYLINDER_*` / `RFID_*` / `SCAN_*` checks are bypassed.
+
+  **Both list routes are bare `PageResponse`s.** One ordering dependency: `POST /scans` needs a `checkpointId` from
+  folder `04`, because `scan_events.checkpoint_id` is `NOT NULL`.
+order: 7000

@@ -1,0 +1,44 @@
+$kind: http-request
+name: C. GET :8082/api/v1/organizations  (X-User-PersonId + X-User-Permissions)  -> 200
+description: |-
+  ## The demonstration, step 3 of 3
+
+  Identical to B, plus **`X-User-Permissions: ORG_VIEW`**. The aspect now finds the permission in the context set and
+  grants access: **200**.
+
+  And this is the security consequence worth stating plainly: **on a direct port, a caller can assert any permission
+  it likes by setting the header.** The headers are trusted because in production only the gateway sets them - the
+  gateway validates the JWT, then injects `X-User-PersonId` / `X-User-Roles` / `X-User-Permissions` itself, replacing
+  anything a client sent.
+
+  That is also why the service containers must **not** be exposed outside the cluster. This request is safe here
+  because it only ever runs against `localhost` in development; the same request against a pod IP reachable from
+  outside would be a privilege-escalation path.
+
+  The three requests together are the whole security model in nine lines of Postman.
+url: "{{orgService}}/api/v1/organizations?size=5"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  size: "5"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 - permission granted by the injected header', function () {
+          pm.expect(pm.response.code).to.eql(200);
+      });
+      pm.test('BARE PageResponse again', function () {
+          const d = pm.response.json();
+          pm.expect(d).to.not.have.property('success');
+          pm.expect(d).to.have.property('totalCount');
+      });
+      console.log('C. + X-User-Permissions: ORG_VIEW -> HTTP ' + pm.response.code + '  (check passed)');
+      console.log('');
+      console.log('SUMMARY  A: no header            -> bypass   B: personId only -> 403   C: +permission -> 200');
+      console.log('WARNING  direct ports must never be exposed outside the cluster: the header is trusted.');
+    language: text/javascript
+order: 3000

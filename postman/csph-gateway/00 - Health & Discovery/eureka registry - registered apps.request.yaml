@@ -1,0 +1,25 @@
+$kind: http-request
+description: |-
+  Eureka server on :8761. The gateway resolves `lb://auth-service`, `lb://tour-service` ... from this registry, so an
+  empty or partial list here is the explanation for every `503 Service Unavailable` in the other folders.
+  Eureka upper-cases the registered names, hence the `AUTH-SERVICE` assertion.
+url: "{{eureka}}/eureka/apps"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('applications object present', function () { pm.expect(j.applications).to.be.an('object'); });
+      const apps = (j.applications && j.applications.app) ? j.applications.app : [];
+      const names = apps.map(function (a) { return a.name; });
+      console.log('registered (' + names.length + '):', names.join(', '));
+      pm.test('AUTH-SERVICE is registered', function () { pm.expect(names.join(',')).to.include('AUTH-SERVICE'); });
+      pm.test('API-GATEWAY is registered', function () { pm.expect(names.join(',')).to.include('API-GATEWAY'); });
+    language: text/javascript
+order: 3000

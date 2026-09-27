@@ -59,6 +59,21 @@ public abstract class BaseEntity {
         if (this.id == null) {
             this.id = java.util.UUID.randomUUID().toString();
         }
+        // `created_by` is NOT NULL in every table, but nothing populated it, so
+        // any insert from a service that did not set it explicitly blew up with
+        // "null value in column created_by violates not-null constraint" (e.g.
+        // POST /api/v1/notification-templates returned 500). Default it here, in
+        // the one place every entity passes through: prefer the authenticated
+        // caller, fall back to SYSTEM for seeders and internal jobs.
+        if (this.createdBy == null) {
+            String personId = null;
+            try {
+                personId = com.gpl.common.security.GplSecurityContext.getCurrentPersonId();
+            } catch (Throwable ignored) {
+                // no security context available (seeders, background jobs)
+            }
+            this.createdBy = (personId != null && !personId.isBlank()) ? personId : "SYSTEM";
+        }
         if (this.changeby == null) {
             this.changeby = this.createdBy;
         }

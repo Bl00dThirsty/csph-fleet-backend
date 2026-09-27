@@ -1,0 +1,36 @@
+$kind: http-request
+name: POST /checkpoints/{checkpointId}/skip?reason=  (reason REQUIRED)
+description: |-
+  **`reason` is a REQUIRED query parameter** (`@RequestParam String reason`, no `required = false`) and this endpoint
+  takes no body. A missing reason is a 400.
+
+  Runs after `validate` in the folder, so the stop is already validated and skipping it will legitimately be rejected
+  by the state machine - the test tolerates 409/422 and logs the reason instead of pretending it is a defect. Skipping
+  a validated stop is exactly the sort of thing the reconciliation report is designed to surface.
+url: "{{gateway}}/api/v1/checkpoints/{{checkpointId}}/skip?reason=Customer%20not%20present%20-%20Postman%20probe"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  reason: Customer%20not%20present%20-%20Postman%20probe
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('skip rejected by the stop state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 14000

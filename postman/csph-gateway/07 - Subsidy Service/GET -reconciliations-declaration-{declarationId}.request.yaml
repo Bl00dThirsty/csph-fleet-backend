@@ -1,0 +1,31 @@
+$kind: http-request
+name: GET /reconciliations/declaration/{declarationId}
+description: |-
+  Reverse lookup: given a declaration, return its reconciliation. Because `declaration_id` is `UNIQUE` this can only
+  ever return one object, and it **404s** when the declaration has not been reconciled.
+
+  `/declaration/{declarationId}` (singular) - easy to mistype next to `/reconciliations/{id}`.
+url: "{{gateway}}/api/v1/reconciliations/declaration/{{declarationId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 with a reconciliation, or 404 when not yet reconciled', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 404]);
+      });
+      const j = pm.response.json();
+      if (pm.response.code === 200) {
+          pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+          pm.test('references our declaration', function () {
+              pm.expect(j.data.declarationId).to.eql(pm.collectionVariables.get('declarationId'));
+          });
+      }
+    language: text/javascript
+order: 12000

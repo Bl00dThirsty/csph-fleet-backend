@@ -1,0 +1,36 @@
+$kind: http-request
+name: POST /persons/{personIdNew}/sites
+description: |-
+  `AssignSiteRequest` requires `personId` + `siteId`, for the same validation-timing reason as the role assignment.
+  `isPrimary` / `isDefault` pick the person's home site, which the frontend uses as the default filter.
+
+  This is the request that makes a person visible in site-scoped listings - without it they exist but can see nothing.
+url: "{{gateway}}/api/v1/persons/{{personIdNew}}/sites"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "personId": "{{personIdLogin}}",
+      "siteId": "{{siteId}}",
+      "organizationId": "{{orgId}}",
+      "isPrimary": true,
+      "isDefault": true
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 assigned, or 409 if already assigned', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 201, 409]);
+      });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('assignment references the site', function () {
+          pm.expect(j.data.siteId).to.eql(pm.collectionVariables.get('siteId'));
+      });
+    language: text/javascript
+order: 14000

@@ -1,0 +1,49 @@
+$kind: http-request
+name: POST /client-sites  (409 tolerated BY DESIGN)
+description: |-
+  `CreateClientSiteRequest` requires `siteId` + `clientOrganizationId`.
+
+  `siteId` is the **site primary key** (`client_sites.site_id UUID NOT NULL UNIQUE`), not the business key. A site can
+  be a client site **at most once, ever** - and that unique constraint is the reason this test tolerates 409 instead
+  of demanding a 2xx. No per-run trick can make it unique, because the constraint is on the site, not on a free-text
+  column.
+
+  On a clean run the site was created two requests ago, so you get 200. Re-run against a database where that site is
+  already a client site and you get 409 - correct behaviour, not a failure. Both `DuplicateResourceException` and
+  `DataIntegrityViolationException` map to 409 in `GlobalExceptionHandler`.
+url: "{{gateway}}/api/v1/client-sites"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "siteId": "{{siteId}}",
+      "clientOrganizationId": "{{clientOrgId}}",
+      "siteContactPersonId": "{{personId}}",
+      "deliveryInstructions": "Call 30 minutes before arrival - Postman probe",
+      "specificRequirements": "Cylinder swap only",
+      "requiresAuthorization": true,
+      "operatingConstraints": "Weekdays 08:00-17:00"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('created, or 409 because the site is already a client site', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 201, 409]);
+      });
+      const j = pm.response.json();
+      if (pm.response.code === 409) {
+          console.warn('409 - this site already has a client-site row (UNIQUE site_id). Correct, not a bug.');
+      } else {
+          pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+          pm.test('clientSiteId captured', function () {
+              pm.expect(j.data.id).to.be.a('string');
+              pm.collectionVariables.set('clientSiteId', j.data.id);
+          });
+      }
+    language: text/javascript
+order: 14000

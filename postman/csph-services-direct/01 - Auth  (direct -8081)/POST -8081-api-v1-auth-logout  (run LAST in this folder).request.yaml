@@ -1,0 +1,27 @@
+$kind: http-request
+name: POST :8081/api/v1/auth/logout  (run LAST in this folder)
+description: |-
+  **auth-service on :8081**. Last request in this folder.
+
+  `AuthService.logout` deletes **every** refresh token for the person, and the database is shared with the gateway
+  collection. So running this invalidates the `refreshToken` that `csph-gateway > 01 - Auth` captured. Re-run that
+  folder''s login + refresh if you then use the gateway collection.
+
+  `X-User-PersonId` is a required `@RequestHeader` here - no `required = false` - so it is sent.
+url: "{{authService}}/api/v1/auth/logout"
+method: POST
+headers:
+  Content-Type: application/json
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('message mentions logout', function () { pm.expect(String(j.message).toLowerCase()).to.include('logout'); });
+    language: text/javascript
+order: 4000

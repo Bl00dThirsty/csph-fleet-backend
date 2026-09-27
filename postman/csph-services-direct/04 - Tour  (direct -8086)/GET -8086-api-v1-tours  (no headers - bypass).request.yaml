@@ -1,0 +1,27 @@
+$kind: http-request
+name: GET :8086/api/v1/tours  (no headers - bypass)
+description: |-
+  **tour-service on :8086**, no security headers, so `TOUR_VIEW` is bypassed. Enveloped `PageResponse`.
+
+  `TourResponseDto` nests its `checkpoints` inline, so one call can show the full itinerary shape.
+url: "{{tourService}}/api/v1/tours?size=20"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  size: "20"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      const p = j.data || {};
+      pm.test('page metadata present', function () { pm.expect(p).to.have.property('totalCount'); });
+      const items = p.content || p.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+    language: text/javascript
+order: 2000

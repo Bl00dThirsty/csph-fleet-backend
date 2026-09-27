@@ -1,0 +1,45 @@
+$kind: http-request
+name: B. GET :8082/api/v1/organizations  (X-User-PersonId only)  -> 403
+description: |-
+  ## The demonstration, step 2 of 3
+
+  **Identical request to A, plus one header: `X-User-PersonId`.**
+
+  Now `GplSecurityContextFilter` builds a context, `isAuthenticated()` is true, and the aspect evaluates
+  `hasPermission("ORG_VIEW")` against the (empty) permission set - so it throws `AccessDeniedException` and
+  `GlobalExceptionHandler` maps it to **403**.
+
+  One header, and a `200` becomes a `403`. That is the whole mechanism in a single diff, and it is why the direct-port
+  collection omits the header on reads: sending it accidentally turns an exploration call into a permission test.
+
+  403 bodies **are** enveloped JSON, unlike the gateway's plain-text 401s.
+url: "{{orgService}}/api/v1/organizations?size=5"
+method: GET
+headers:
+  Content-Type: application/json
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  size: "5"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('403 Forbidden - the check is ENFORCED once a context exists', function () {
+          pm.expect(pm.response.code).to.eql(403);
+      });
+      const j = pm.response.json();
+      pm.test('403 body IS a JSON envelope (unlike the gateway 401)', function () {
+          pm.expect(j).to.be.an('object');
+          pm.expect(j).to.have.property('success');
+          pm.expect(j.success).to.eql(false);
+      });
+      pm.test('error names the missing permission', function () {
+          const blob = JSON.stringify(j);
+          pm.expect(blob).to.include('ORG_VIEW');
+      });
+      console.log('B. X-User-PersonId, no permissions -> HTTP ' + pm.response.code + '  (check enforced)');
+      console.log('   ' + String(pm.response.text()).slice(0, 300));
+    language: text/javascript
+order: 2000

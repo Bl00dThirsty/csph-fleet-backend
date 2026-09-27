@@ -1,0 +1,29 @@
+$kind: http-request
+name: GET /persons/by-person-id/{personId}  (by BUSINESS key)
+description: |-
+  The business-key lookup, e.g. `/persons/by-person-id/superadmin.cspHq`.
+
+  This is the endpoint `AuthService` calls during login to resolve the caller's roles, and it carries **no**
+  `@RequiresPermission` - which is why it answers even from contexts where the other person routes would 403.
+
+  Order of the path segments is what distinguishes the two lookups: `by-person-id/{key}` vs `{uuid}`.
+url: "{{gateway}}/api/v1/persons/by-person-id/{{personId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('personId matches the requested business key', function () {
+          pm.expect(j.data.personId).to.eql(pm.collectionVariables.get('personId'));
+      });
+    language: text/javascript
+order: 5000

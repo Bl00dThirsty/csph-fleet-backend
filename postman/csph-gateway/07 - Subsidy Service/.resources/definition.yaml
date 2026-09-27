@@ -1,0 +1,20 @@
+$kind: collection
+description: |-
+  subsidy-service on :8089, reached through `{{gateway}}/api/v1` - the financial core: volume declarations, their
+  reconciliation against tracked movements, and the redressements that follow a shortfall.
+
+  **The chain is strictly ordered** - declaration -> reconciliation -> redressement - and each link only accepts its
+  own predecessor''s identifier. A reconciliation cannot exist before its declaration, and a redressement cannot exist
+  before its reconciliation.
+
+  **Deliberate state-machine rejections.** Four requests in this folder (`reject` after `approve`, `cancel` after
+  `pay`, and the two conflicting pickup / tour transitions in folder `04`) are *expected* to be refused. Those tests
+  assert `200|409|422` and log the body. A pass there means the lifecycle is enforced; a failure would mean it is not.
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      if (!pm.collectionVariables.get('accessToken')) {
+          console.warn('No accessToken yet - run 01 - Auth > POST /api/v1/auth/login first. Expect 401s.');
+      }
+    language: text/javascript
+order: 10000

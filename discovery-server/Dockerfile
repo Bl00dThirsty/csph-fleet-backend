@@ -1,5 +1,10 @@
+FROM maven:3.9.9-eclipse-temurin-21-alpine AS build
+WORKDIR /app
+COPY . .
+RUN mvn clean package -DskipTests -Dmaven.wagon.http.retryHandler.count=5 -pl discovery-server -am
+
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY discovery-server/target/discovery-server-1.0.0-SNAPSHOT.jar app.jar
+COPY --from=build /app/discovery-server/target/*.jar app.jar
 EXPOSE 8761
 ENTRYPOINT ["java", "-jar", "app.jar"]

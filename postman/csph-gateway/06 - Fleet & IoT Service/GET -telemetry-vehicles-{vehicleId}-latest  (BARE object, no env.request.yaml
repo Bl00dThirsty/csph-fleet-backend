@@ -1,0 +1,39 @@
+$kind: http-request
+name: GET /telemetry/vehicles/{vehicleId}/latest  (BARE object, no envelope)
+description: |-
+  The truck''s most recent known position.
+
+  **The response is a BARE object, not an `ApiResponse` envelope** - `ResponseEntity<TelemetryResponse>` rather than
+  `ResponseEntity<ApiResponse<TelemetryResponse>>`. The `TelemetryResponse` fields are at the top level, so
+  `j.data` does not exist. The test below reads the top-level keys.
+
+  This is the inconsistency that makes the telemetry controller the odd one out in the whole platform, and it is worth
+  knowing before writing a client against it: three adjacent endpoints, three different response conventions.
+url: "{{gateway}}/api/v1/telemetry/vehicles/{{vehicleId}}/latest"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const t = pm.response.json();
+      pm.test('BARE object - no success envelope', function () {
+          pm.expect(t).to.be.an('object');
+          pm.expect(t).to.not.have.property('success');
+      });
+      pm.test('no nested data wrapper', function () {
+          pm.expect(t).to.not.have.property('data');
+      });
+      pm.test('position fields at the top level', function () {
+          pm.expect(t).to.have.property('vehicleId');
+          pm.expect(t).to.have.property('latitude');
+          pm.expect(t).to.have.property('longitude');
+      });
+    language: text/javascript
+order: 12000

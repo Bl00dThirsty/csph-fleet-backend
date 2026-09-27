@@ -22,7 +22,7 @@ public class RedressementController {
 
     private final RedressementService redressementService;
 
-    @RequiresPermission("REDRESSEMENT_VIEW")
+    @RequiresPermission("REDESSEMENT_VIEW")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<RedressementResponse>>> listRedressements(
             @RequestParam(required = false) String reconciliationId,
@@ -33,7 +33,7 @@ public class RedressementController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
-    @RequiresPermission("REDRESSEMENT_CREATE")
+    @RequiresPermission("REDESSEMENT_CREATE")
     @PostMapping
     public ResponseEntity<ApiResponse<RedressementResponse>> createRedressement(
             @Valid @RequestBody CreateRedressementRequest request,
@@ -43,7 +43,7 @@ public class RedressementController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(result, "Redressement created successfully"));
     }
 
-    @RequiresPermission("REDRESSEMENT_VIEW")
+    @RequiresPermission("REDESSEMENT_VIEW")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<RedressementResponse>> getRedressement(@PathVariable String id) {
         log.info("REST request to get redressement: {}", id);
@@ -51,7 +51,7 @@ public class RedressementController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @RequiresPermission("REDRESSEMENT_UPDATE")
+    @RequiresPermission("REDESSEMENT_UPDATE")
     @PostMapping("/{id}/pay")
     public ResponseEntity<ApiResponse<RedressementResponse>> markAsPaid(
             @PathVariable String id,
@@ -62,7 +62,7 @@ public class RedressementController {
         return ResponseEntity.ok(ApiResponse.ok(result, "Redressement marked as paid successfully"));
     }
 
-    @RequiresPermission("REDRESSEMENT_UPDATE")
+    @RequiresPermission("REDESSEMENT_UPDATE")
     @PostMapping("/{id}/cancel")
     public ResponseEntity<ApiResponse<RedressementResponse>> cancelRedressement(
             @PathVariable String id,
@@ -72,7 +72,7 @@ public class RedressementController {
         return ResponseEntity.ok(ApiResponse.ok(result, "Redressement cancelled successfully"));
     }
 
-    @RequiresPermission("REDRESSEMENT_DELETE")
+    @RequiresPermission("REDESSEMENT_DELETE")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteRedressement(@PathVariable String id) {
         log.info("REST request to delete redressement: {}", id);

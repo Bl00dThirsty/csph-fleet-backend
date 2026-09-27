@@ -1,0 +1,32 @@
+$kind: http-request
+name: POST /devices/{deviceId}/assign
+description: |-
+  Assigns the device to a driver **and** a truck in one call - which is the real-world pairing, since a handheld rides
+  in a specific truck with a specific person. `AssignDeviceRequest` has no `@NotBlank`, so assigning to nobody is a
+  legal (if useless) request.
+
+  Person and vehicle ids were captured in folder `03` (`personIdNew`) and this folder (`vehicleId`).
+url: "{{gateway}}/api/v1/devices/{{deviceId}}/assign"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "assignedToPersonId": "{{personId}}",
+      "assignedToVehicleId": "{{vehicleId}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('assigned to the vehicle', function () {
+          pm.expect(j.data.assignedToVehicleId).to.eql(pm.collectionVariables.get('vehicleId'));
+      });
+    language: text/javascript
+order: 9000

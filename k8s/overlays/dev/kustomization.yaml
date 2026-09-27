@@ -1,0 +1,51 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# dev overlay — the kind cluster `csph-gpl`.
+#
+# Deliberately thin. Everything environment-specific is already in the base
+# because this platform has exactly one environment today; the overlay only
+# does the three things an overlay is actually for:
+#
+#   1. namespace        — pin every namespaced object to csph-gpl
+#   2. labels           — stamp app.kubernetes.io/part-of on every resource
+#                         AND on every selector, so
+#                         `kubectl get all -l app.kubernetes.io/part-of=csph-gpl-platform`
+#                         returns the whole platform and nothing else
+#   3. one dev patch    — pod annotations that carry the log command per
+#                         workload. One strategic-merge document per workload
+#                         in a single file (see patch-pod-annotations.yaml);
+#                         no `target:` is set because kustomize matches each
+#                         document by its own apiVersion/kind/metadata.name,
+#                         and a multi-document patch file is not allowed to
+#                         carry a target at all.
+#
+# NOT here, on purpose:
+#   * namePrefix / nameSuffix — would break the DNS names the Spring configs
+#     and the `lb://` routes depend on
+#   * an imagePullPolicy patch — the base already sets IfNotPresent, and
+#     `kind load docker-image` is the distribution mechanism (there is no
+#     registry in this cluster)
+#   * a memory/limits patch — the base numbers already fit the 32GB node
+#     (see the budget note in the report); a dev-only downgrade would be
+#     indistinguishable from a real regression later
+#   * replicas: 0 for the databases — teardown is
+#     `kubectl delete -k k8s/overlays/dev`, not a scaled-down overlay
+#
+# `labels:` is used instead of the deprecated `commonLabels:` spelling; with
+# `includeSelectors: true` it produces byte-identical output (and the same
+# deprecation warning `commonLabels` emits on every build).
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: csph-gpl
+
+resources:
+  - ../../base
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: csph-gpl-platform
+    includeSelectors: true
+
+patches:
+  - path: patch-pod-annotations.yaml

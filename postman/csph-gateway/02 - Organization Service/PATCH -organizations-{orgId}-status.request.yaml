@@ -1,0 +1,31 @@
+$kind: http-request
+name: PATCH /organizations/{orgId}/status
+description: |-
+  `UpdateStatusRequest` = `{newStatus, reason}` - the platform-wide status-lifecycle shape; the identical class name
+  appears in organization-service, user-service and elsewhere with a matching contract.
+
+  `OrganizationService.updateStatus` is a plain `org.setStatus(...)` with **no enum validation**, so any string is
+  accepted. `INACTIVE` is used here deliberately: it is a real `EntityStatus` value that does not gate any of the
+  reads that follow. (Compare the site request below, whose value does come from a closed enum.)
+url: "{{gateway}}/api/v1/organizations/{{orgId}}/status"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "newStatus": "INACTIVE",
+      "reason": "Postman status-lifecycle probe"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('status is now INACTIVE', function () { pm.expect(j.data.status).to.eql('INACTIVE'); });
+    language: text/javascript
+order: 5000

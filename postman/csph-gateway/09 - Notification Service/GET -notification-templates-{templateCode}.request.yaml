@@ -1,0 +1,25 @@
+$kind: http-request
+name: GET /notification-templates/{templateCode}
+description: |-
+  Single template, addressed by **code** - the business key, not a UUID. `{{templateCode}}` is captured by the create
+  request above, and this route has no `/{id}` variant, so a UUID here is a guaranteed 404.
+url: "{{gateway}}/api/v1/notification-templates/{{templateCode}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('code round-trips', function () {
+          pm.expect(j.data.code).to.eql(pm.collectionVariables.get('templateCode'));
+      });
+    language: text/javascript
+order: 3000

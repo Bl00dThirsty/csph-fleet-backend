@@ -1,0 +1,35 @@
+$kind: http-request
+name: POST :8089/api/v1/redressements  (capture redressementId)
+description: |-
+  **subsidy-service on :8089**, no security headers. Requires `reconciliationId` (`@NotBlank`) and `dueDate`
+  (`@NotNull`); `amount` and `transactionRef` are optional.
+
+  625.0 is exactly one ton at the declared 625 per-tonne rate, which makes the figure checkable by hand - the property
+  that actually matters in a subsidy dispute.
+
+  `dueDate` comes from the collection pre-request (30 days out), so the penalty is never already overdue.
+url: "{{subsidyService}}/api/v1/redressements"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reconciliationId": "{{reconciliationId}}",
+      "amount": 625.0,
+      "dueDate": "{{dueDate}}",
+      "transactionRef": "DTX-{{uniq}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('redressementId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('redressementId', j.data.id);
+      });
+    language: text/javascript
+order: 9000

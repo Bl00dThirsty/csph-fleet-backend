@@ -1,0 +1,31 @@
+$kind: http-request
+name: GET :8088/api/v1/vehicles  (no headers - bypass)
+description: |-
+  **fleet-device-service on :8088**, no security headers, so `fleet.vehicles.read` is bypassed.
+
+  Enveloped `ApiResponse<PageResponse<VehicleResponse>>` - note the **dotted lower-case** permission style this service
+  uses (`fleet.vehicles.read` / `.create` / `.write` / `.manage`) against UPPER_SNAKE in organization, user and tour
+  services. Both styles are live in the same `permissions` table.
+
+  Also the only list endpoint in the platform with a server-side sort contract (`sortBy` / `sortDir`).
+url: "{{fleetService}}/api/v1/vehicles?size=20"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  size: "20"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      const p = j.data || {};
+      pm.test('page metadata present', function () { pm.expect(p).to.have.property('totalCount'); });
+      const items = p.content || p.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });if (items[0]) { pm.collectionVariables.set('vehicleId', items[0].id); }
+    language: text/javascript
+order: 1000

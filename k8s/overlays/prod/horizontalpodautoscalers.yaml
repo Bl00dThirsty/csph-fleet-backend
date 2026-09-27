@@ -1,0 +1,502 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# HorizontalPodAutoscalers (autoscaling/v2) for api-gateway + the 9 services.
+#
+# ⚠⚠ THIS FILE IS INERT UNLESS metrics-server IS INSTALLED. ⚠⚠
+#   The kind cluster `csph-gpl` has NO metrics-server (verified:
+#   `kubectl get pods -n kube-system` shows only coredns, etcd, kindnet,
+#   kube-apiserver, kube-controller-manager, kube-proxy, kube-scheduler).
+#   Without a metrics provider, every HPA here reports
+#       ScalingActive=False  ScalingLimited=False  <unknown>/<unknown>
+#   and never scales. That is a silent no-op, not a failure — which is worse,
+#   because the manifests look like they are working.
+#
+#   Install it before trusting any of this:
+#       kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+#       kubectl -n kube-system rollout status deploy/metrics-server
+#   and confirm it reports real numbers:
+#       kubectl top pods -n csph-gpl
+#   `kubectl top` printing "error: Metrics API not available" means the HPA
+#   above is decorative.
+#
+# ── TWO METRICS, NOT ONE ───────────────────────────────────────────────────
+# A single CPU target is the usual example and it is the wrong default for a
+# request-serving service. CPU-only scaling cannot see a service that is
+# saturated on CONNECTION POOLS, on a downstream database, or on thread
+# contention while sitting at 40% CPU — which is exactly the shape of the
+# failure this platform has: a service whose only symptom is "the gateway
+# takes four seconds". So every HPA here is dual-metric:
+#
+#   CPU:    averageUtilization 70    — the normal signal
+#   Memory: averageUtilization 75    — catches a leak or an oversized
+#                                      working set before OOMKill does
+#
+# `behavior` is explicit on every HPA. The defaults (scale up 100% every
+# 15s, scale down 50% every 15s) are a fork bomb during a traffic spike: a
+# service that needs 3 more pods can create 6, each of which starts a JVM and
+# hammers the databases during their own cold start.
+#   * scaleUp   — add at most 2 pods / 60s. Bounded.
+#   * scaleDown — remove at most 1 pod / 120s, and only after 300s of
+#     stability. JVM shutdown here is 30s (terminationGracePeriodSeconds), so
+#     a 120s cooldown is not excessive caution, it is the arithmetic.
+#   * stabilizationWindowSeconds keeps a brief dip from deleting a pod that is
+#     about to be needed again, which on a 2-replica service is the difference
+#     between a blip and an outage.
+#
+# ── THE replicas/HPA CONFLICT. READ BEFORE THE FIRST DEPLOY. ──────────────
+# patches/jvm-workloads-prod.yaml sets `replicas: 2` on all of these
+# Deployments, because the brief asks for it. But a Deployment's
+# `spec.replicas` and an HPA's `scaleTargetRef` are TWO CONTROLLERS writing
+# THE SAME FIELD, and the Deployment controller wins on every `kubectl apply`:
+#
+#     14:00  HPA scales auth-service 2 -> 5
+#     14:10  someone runs kubectl apply -k k8s/overlays/prod
+#     14:10  Deployment controller resets spec.replicas to 2
+#     14:11  3 pods are terminated
+#     14:11  HPA scales back up to 5
+#     ...    forever, on every apply
+#
+# minReplicas is set to 2 here so the two at least agree at the bottom of the
+# range and nothing flaps at rest. The FIX for a real cluster is one of:
+#
+#   (a) Delete the `replicas:` key from the Deployment in
+#       patches/jvm-workloads-prod.yaml and let the HPA own it. The cleanest.
+#   (b) Add the legacy annotation to the pod template instead:
+#           metadata:
+#             annotations:
+#               autoscaling/v2: "auth-service"
+#       The annotation tells the Deployment controller to read spec.replicas
+#       from the HPA rather than from the manifest. It is deprecated in favour
+#       of (a) and will be removed.
+#
+#   Until one of those is done, these HPAs can only ever hold at 2. That is
+#   still a working configuration — 2 replicas, a PDB and production
+#   resources — it is just not an autoscaling one.
+#
+# ── WHY discovery-server HAS NO HPA ────────────────────────────────────────
+# Eureka is a registry, not a traffic-serving service, and its replica count
+# is a correctness question, not a capacity question. It is also NOT SAFE to
+# autoscale: two independent Eureka servers that cannot peer with each other
+# (and the base's application.yml sets register-with-eureka: false /
+# fetch-registry: false, with no eureka.cluster.peer.* configuration at all)
+# split the registry in half. Clients round-robin between them; the gateway
+# fetches from one and finds none of the instances the other holds. The
+# symptom is intermittent, unreproducible 503s.
+#
+# It is left at the fixed 2 replicas from the patch file, and the split-brain
+# risk that creates is called out at the top of NOTES.md as the highest-risk
+# item in this overlay. Read that section before running more than one.
+#
+# ── WHY THERE IS NO HPA FOR THE 9 DATABASES ────────────────────────────────
+# See the top of patches/postgres-prod.yaml. Scaling a PostgreSQL StatefulSet
+# on CPU produces two unsynchronised writers behind one Service, which is
+# silent data corruption rather than an outage.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/component: application
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: auth-service
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/component: application
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: auth-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: organization-service
+  labels:
+    app.kubernetes.io/name: organization-service
+    app.kubernetes.io/component: application
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: organization-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: user-service
+  labels:
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/component: application
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: user-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: audit-service
+  labels:
+    app.kubernetes.io/name: audit-service
+    app.kubernetes.io/component: application
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: audit-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: notification-service
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/component: application
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: notification-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tour-service
+  labels:
+    app.kubernetes.io/name: tour-service
+    app.kubernetes.io/component: application
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: tour-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cylinder-service
+  labels:
+    app.kubernetes.io/name: cylinder-service
+    app.kubernetes.io/component: application
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cylinder-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fleet-device-service
+  labels:
+    app.kubernetes.io/name: fleet-device-service
+    app.kubernetes.io/component: application
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fleet-device-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: subsidy-service
+  labels:
+    app.kubernetes.io/name: subsidy-service
+    app.kubernetes.io/component: application
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: subsidy-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120

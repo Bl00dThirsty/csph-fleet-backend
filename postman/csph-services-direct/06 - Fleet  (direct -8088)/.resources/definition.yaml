@@ -1,0 +1,12 @@
+$kind: collection
+name: 06 - Fleet  (direct :8088)
+description: |-
+  fleet-device-service on **8088**, i.e. `http://csph/gpl-fleet-device-service` in-cluster.
+
+  No security headers - this service uses the **dotted lower-case** permission style (`fleet.vehicles.read`,
+  `fleet.devices.write`, `TELEMETRY_VIEW`) and every one of those checks is bypassed here.
+
+  Three response conventions in three adjacent controllers: `/vehicles` and `/devices` are enveloped
+  `PageResponse`s, `POST /telemetry` answers 201 with an **empty body**, and `GET /telemetry/vehicles/{id}/latest`
+  answers a **bare object**.
+order: 8000

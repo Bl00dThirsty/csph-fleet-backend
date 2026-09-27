@@ -1,0 +1,32 @@
+$kind: http-request
+name: POST :8089/api/v1/declarations/{declarationId}/submit  (the domain action)
+description: |-
+  **subsidy-service on :8089**, no security headers, so the submit check is bypassed.
+
+  `DRAFT -> SUBMITTED`. No body, no parameters.
+
+  Every later action (review, approve, reject) is only legal from `SUBMITTED`, so folder order is load-bearing here in a
+  way it is not for a plain CRUD resource.
+url: "{{subsidyService}}/api/v1/declarations/{{declarationId}}/submit"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('submit rejected by the declaration state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 4000

@@ -1,0 +1,24 @@
+$kind: http-request
+name: GET /scans/{scanEventId}
+description: |-
+  Single scan, enveloped. `conflictStatus` is the field to read here: a non-null value means the event needs manual
+  adjudication, which is precisely what the next request performs.
+url: "{{gateway}}/api/v1/scans/{{scanEventId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('scanEventId')); });
+      console.log('conflictStatus:', j.data.conflictStatus);
+    language: text/javascript
+order: 13000

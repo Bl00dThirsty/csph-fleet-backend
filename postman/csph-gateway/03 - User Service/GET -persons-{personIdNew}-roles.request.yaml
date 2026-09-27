@@ -1,0 +1,26 @@
+$kind: http-request
+name: GET /persons/{personIdNew}/roles
+description: |-
+  Role assignments, queried by the person''s **business** `personId` - the controller resolves
+  `personService.getPerson(id).getPersonId()` before delegating, so the UUID in the path is only used for the lookup.
+
+  Returns `UserRoleAssignment` entities, each with a validity window (`validFrom` / `validUntil`) and an `isPrimary`
+  flag - which is how one person holds several roles with different scopes at once.
+url: "{{gateway}}/api/v1/persons/{{personIdNew}}/roles"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array', function () { pm.expect(j.data).to.be.an('array'); });console.log('role assignments (empty before the POST below):', j.data.length);
+    language: text/javascript
+order: 11000

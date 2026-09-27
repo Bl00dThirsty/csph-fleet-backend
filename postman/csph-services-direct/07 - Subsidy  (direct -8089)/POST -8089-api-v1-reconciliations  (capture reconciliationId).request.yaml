@@ -1,0 +1,36 @@
+$kind: http-request
+name: POST :8089/api/v1/reconciliations  (capture reconciliationId)
+description: |-
+  **subsidy-service on :8089**, no security headers. Only `declarationId` is required; every tracked figure is
+  optional.
+
+  The numbers are the whole point: 12.0 t declared against 12.0 t tracked here, but **one more bottle out than in** -
+  and `trackedBottlesOut - trackedBottlesIn` is the leak the redressement amount in the gateway collection is computed
+  from. `subsidyRate` is the per-tonne rate applied to the volume gap.
+url: "{{subsidyService}}/api/v1/reconciliations"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "declarationId": "{{declarationId}}",
+      "trackedVolume": 12.0,
+      "trackedBottlesOut": 14,
+      "trackedBottlesIn": 13,
+      "subsidyRate": 625.0,
+      "notes": "Direct-port reconciliation probe"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('reconciliationId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('reconciliationId', j.data.id);
+      });
+    language: text/javascript
+order: 7000

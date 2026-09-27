@@ -1,0 +1,45 @@
+$kind: http-request
+name: POST :8085/api/v1/notification-templates  (every field @NotBlank)
+description: |-
+  **notification-service on :8085**, no security headers. This controller declares no identity header at all.
+
+  `CreateTemplateRequest` marks **every** field `@NotBlank` - code, name, subject, bodyTemplate, module, channel,
+  language. That is the strictest create DTO in the platform, and the 400 message names the offending field.
+
+  `code` is the business key used by `/notifications/send`, so it carries `{{uniq}}`.
+
+  `bodyTemplate` uses `{{placeholder}}` syntax (double braces) resolved at send time against the request''s
+  `variables`. An unresolved placeholder is left in the body **verbatim with no error** - which is worth remembering
+  the next time a notification arrives containing a literal `{{reference}}`.
+
+  **The body sends `\{\{recipientName\}\}` with escaped braces, and that matters.** Postman substitutes `{{...}}` in
+  request bodies before sending, so an unescaped placeholder would become an empty string and the stored template
+  would silently lose its slots. `\{\{` is how you send a literal `{{`.
+url: "{{notifService}}/api/v1/notification-templates"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "code": "DIR-TPL-{{uniq}}",
+      "name": "Postman Direct Template {{uniq}}",
+      "subject": "Notification directe {{uniq}}",
+      "bodyTemplate": "Bonjour \{\{recipientName\}\}, votre demande \{\{reference\}\} est \{\{status\}\}. - Postman direct probe",
+      "module": "TOUR",
+      "channel": "EMAIL",
+      "language": "FR"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('templateCode captured', function () {
+          pm.expect(j.data.code).to.eql('DIR-TPL-' + pm.collectionVariables.get('uniq'));
+          pm.collectionVariables.set('templateCode', j.data.code);
+      });
+    language: text/javascript
+order: 1000

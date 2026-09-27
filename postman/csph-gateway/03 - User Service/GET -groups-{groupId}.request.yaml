@@ -1,0 +1,23 @@
+$kind: http-request
+name: GET /groups/{groupId}
+description: |-
+  Single group, enveloped. `memberCount` should read 0 right after creation - the assertion below pins the id, and the
+  next request shows the roster growing.
+url: "{{gateway}}/api/v1/groups/{{groupId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('groupId')); });
+    language: text/javascript
+order: 25000

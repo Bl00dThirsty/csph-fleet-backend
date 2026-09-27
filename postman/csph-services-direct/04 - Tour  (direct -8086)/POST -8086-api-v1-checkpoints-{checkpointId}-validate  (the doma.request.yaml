@@ -1,0 +1,32 @@
+$kind: http-request
+name: POST :8086/api/v1/checkpoints/{checkpointId}/validate  (the domain action)
+description: |-
+  **tour-service on :8086**, no security headers - `CHECKPOINT_VALIDATE` is bypassed.
+
+  Marks the stop reached / delivered. **No body and no parameters** - this is exactly the route a driver''s PDA hits
+  on arrival, which is why it must stay parameterless.
+
+  Penalised by the reconciliation engine when the delivered quantity is short, which is what folder `07` measures.
+url: "{{tourService}}/api/v1/checkpoints/{{checkpointId}}/validate"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('validate rejected by the stop state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 8000

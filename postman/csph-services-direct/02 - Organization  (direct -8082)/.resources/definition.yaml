@@ -1,0 +1,12 @@
+$kind: collection
+name: 02 - Organization  (direct :8082)
+description: |-
+  organization-service on **8082**, i.e. `http://csph/gpl-organization-service` in-cluster.
+
+  Reads go out with **no security headers**, which is what makes `PermissionAspect` skip `ORG_VIEW` / `SITE_VIEW` /
+  `CLASS_VIEW`. Writes carry `X-User-PersonId` because those methods declare it as a required `@RequestHeader` - a
+  missing header there is a 400 from Spring MVC, never a 403.
+
+  **Response shapes:** `/organizations` and `/sites` are bare `PageResponse`s; `/organizations/{id}` and
+  `/classifications` are enveloped; `/organizations/{id}/children` is an enveloped array.
+order: 4000

@@ -1,0 +1,31 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# JVM tuning shared by every Spring Boot pod.
+#
+# The images are eclipse-temurin:21-jre-alpine, which sizes the heap from the
+# cgroup memory limit. With a 1536Mi limit (9 microservices) and 512Mi
+# (api-gateway) MaxRAMPercentage=70 leaves headroom for Metaspace, the JVM's
+# off-heap structures and the direct buffers a Netty gateway needs — without it
+# the JVM happily sizes the heap at 1/4 of *host* RAM (32GB here) and gets
+# OOMKilled. G1 is the JDK 21 default; it is pinned so a base-image change
+# cannot silently swap the collector.
+#
+# Injected with envFrom.configMapRef by the 9 microservices and api-gateway.
+# discovery-server deliberately does NOT use it: the platform spec scopes JVM
+# tuning to the 10 application pods and discovery-server runs with a 512Mi
+# request inside a 1Gi limit, where the ergonomics defaults are already safe.
+#
+# -Dfile.encoding=UTF-8 is not optional on alpine. Without an explicit encoding
+# the JVM falls back to the POSIX locale (ANSI_X3.4-1968 / US-ASCII) and every
+# accented string leaves the process mangled — "Administrateur Système" is
+# serialised as "Administrateur Syst??me" and the corruption is baked into the
+# JSON before it ever reaches PostgreSQL's UTF-8 columns.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jvm-common
+  labels:
+    app.kubernetes.io/name: jvm-common
+    app.kubernetes.io/component: application
+data:
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:+UseG1GC -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8"

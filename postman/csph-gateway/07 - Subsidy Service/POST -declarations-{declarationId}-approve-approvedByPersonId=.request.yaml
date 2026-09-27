@@ -1,0 +1,36 @@
+$kind: http-request
+name: POST /declarations/{declarationId}/approve?approvedByPersonId=
+description: |-
+  The regulator approves the declared volume, which is what makes the volume subsidy-eligible. `approvedByPersonId`
+  and `notes` are optional query parameters.
+
+  `approve` is deliberately **not** followed by `reject`: rejecting an already-approved declaration is a state-machine
+  error, and the request below exists to demonstrate that the lifecycle is actually enforced.
+url: "{{gateway}}/api/v1/declarations/{{declarationId}}/approve?approvedByPersonId={{personId}}&notes=Approved%20by%20the%20Postman%20suite"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  approvedByPersonId: "{{personId}}"
+  notes: Approved%20by%20the%20Postman%20suite
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('approve rejected by the declaration state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 7000

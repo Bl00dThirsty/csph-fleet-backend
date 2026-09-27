@@ -1,0 +1,25 @@
+$kind: http-request
+name: GET /roles/{roleId}/permissions
+description: |-
+  Only the permissions whose grant row has `granted = true` - `RoleService.getPermissionsForRole` filters on that
+  flag, so a revoked-but-still-stored row is invisible here. Enveloped **array**.
+
+  Legitimately empty on the role just created; the next request fills it.
+url: "{{gateway}}/api/v1/roles/{{roleId}}/permissions"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array', function () { pm.expect(j.data).to.be.an('array'); });console.log('granted permissions before the grant (' + j.data.length + ')');
+    language: text/javascript
+order: 19000

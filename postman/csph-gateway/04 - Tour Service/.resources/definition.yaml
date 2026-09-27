@@ -1,0 +1,23 @@
+$kind: collection
+description: |-
+  tour-service on :8086, reached through `{{gateway}}/api/v1` - delivery tours (`/tours`), their stops
+  (`/checkpoints`), the demand side (`/pickups`) and transporter contracts (`/contracts`).
+
+  **One bootstrap request opens the folder.** `assign-vehicle` requires `vehicleId` in the query string, but vehicles
+  are created in folder `06`, which runs later - so an existing vehicle is fetched here instead. That keeps folder
+  `04` runnable on its own rather than depending on a folder below it.
+
+  **The lifecycle order is real:** create -> assign-driver -> assign-vehicle -> start -> checkpoints ->
+  validate/skip -> close -> delete. Steps after a state transition can legitimately 409/422, and those assertions
+  tolerate it and log the body rather than pretending a rejection is a defect.
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      if (!pm.collectionVariables.get('accessToken')) {
+          console.warn('No accessToken yet - run 01 - Auth > POST /api/v1/auth/login first. Expect 401s.');
+      }
+      if (!pm.collectionVariables.get('siteId')) {
+          console.warn('siteId is empty - run folder 02 (GET /sites) first. Checkpoints need it.');
+      }
+    language: text/javascript
+order: 7000

@@ -1,0 +1,27 @@
+$kind: http-request
+name: GET /organizations/{orgId}/hierarchy
+description: |-
+  Declared as `ApiResponse<Object>` because the payload is a recursive tree - an object at one depth, an array at
+  another. Asserted defensively (defined and not null) rather than typed, which is the honest thing to do for an
+  `Object` return.
+url: "{{gateway}}/api/v1/organizations/{{orgId}}/hierarchy"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('hierarchy payload present', function () {
+          pm.expect(j.data).to.not.eql(undefined);
+          pm.expect(j.data).to.not.eql(null);
+      });
+    language: text/javascript
+order: 7000

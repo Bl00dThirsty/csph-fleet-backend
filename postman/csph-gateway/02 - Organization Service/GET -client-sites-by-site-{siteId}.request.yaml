@@ -1,0 +1,35 @@
+$kind: http-request
+name: GET /client-sites/by-site/{siteId}
+description: |-
+  Reverse lookup: given a site, return its client-site binding. A **single** enveloped object, not a list.
+
+  **404 is the normal case** for a freshly created operational depot - only sites typed `CST` / bound to a CLIENT org
+  carry a client-site row. The assertion accepts both, and on 200 it cross-checks that the returned `siteId` is the
+  one we asked about.
+url: "{{gateway}}/api/v1/client-sites/by-site/{{siteId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 with a binding, or 404 when unbound', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 404]);
+      });
+      const j = pm.response.json();
+      if (pm.response.code === 200) {
+          pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+          pm.test('siteId echoed', function () {
+              pm.expect(j.data.siteId).to.eql(pm.collectionVariables.get('siteId'));
+          });
+          pm.collectionVariables.set('clientSiteId', j.data.id);
+      } else {
+          console.log('404 - this site is not bound as a client site (expected for an operational depot).');
+      }
+    language: text/javascript
+order: 15000

@@ -1,0 +1,25 @@
+$kind: http-request
+name: GET /groups/{groupId}/members
+description: |-
+  Group roster, joined out of `user_group_memberships`. Enveloped **array** of `GroupMemberResponse` (person UUID plus
+  display name).
+
+  Empty until the POST below.
+url: "{{gateway}}/api/v1/groups/{{groupId}}/members"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array', function () { pm.expect(j.data).to.be.an('array'); });console.log('members before add:', j.data.length);
+    language: text/javascript
+order: 26000

@@ -1,0 +1,23 @@
+$kind: http-request
+name: port 8080  api-gateway  ->  /actuator/health
+description: |-
+  The tenth port: the gateway itself, for contrast.
+
+  `JwtAuthenticationFilter.OPEN_ENDPOINTS` does not list `/actuator`, so this is **401 plain text** unless a bearer
+  token is attached. The assertion still accepts 200 - the point is only that the process answers.
+url: "{{gateway}}/actuator/health"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('gateway answers on port 8080', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 401, 404]);
+      });
+      console.log('api-gateway :8080 -> HTTP ' + pm.response.code);
+    language: text/javascript
+order: 10000

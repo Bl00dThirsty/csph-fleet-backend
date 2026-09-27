@@ -1,0 +1,26 @@
+$kind: http-request
+name: GET /permissions/modules
+description: |-
+  Distinct `module` values across the catalog - the grouping the settings and role-editor UI renders as sections.
+
+  Route specificity keeps this from colliding with `GET /permissions/{id}`: Spring prefers the literal `/modules`
+  over the `{id}` template, so a permission whose id happened to be the string `modules` would be unreachable. Not a
+  practical concern with UUIDs, but it is why the more specific route is declared at all.
+url: "{{gateway}}/api/v1/permissions/modules"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array', function () { pm.expect(j.data).to.be.an('array'); });console.log('modules:', j.data.join(', '));
+    language: text/javascript
+order: 22000

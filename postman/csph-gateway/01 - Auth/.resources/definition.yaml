@@ -1,0 +1,9 @@
+$kind: collection
+description: |-
+  **Login is the keystone of the whole suite.** It is the only request that publishes `accessToken`, and every folder
+  from `02` onwards reads it. Nothing downstream works without running this folder first.
+
+  `ipAddress` + `deviceInfo` are not optional decoration - see the request description for the column-overflow trap.
+
+  > `POST /api/v1/auth/logout` is deliberately last in this folder: it invalidates all refresh tokens for the person.
+order: 3000

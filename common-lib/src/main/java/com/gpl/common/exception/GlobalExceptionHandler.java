@@ -1,14 +1,18 @@
 package com.gpl.common.exception;
 
 import com.gpl.common.dto.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -32,6 +36,37 @@ public class GlobalExceptionHandler {
         log.warn("Ressource non trouvée : {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(ex.getErrorCode(), ex.getMessage()));
+    }
+
+    /*
+     * Aucune route ne correspond à l'URL demandée.
+     *
+     * Sans ce handler ces deux exceptions tombent dans handleGeneric et
+     * remontent en 500 : un client qui appelle /api/v1/rfid-tags (route du
+     * gateway) sur un service qui n'expose que /api/v1/rfid reçoit alors
+     * "Une erreur interne est survenue" et n'a aucun moyen de savoir que la
+     * requête est simplement mal adressée. Le message renvoie l'URL et la
+     * méthode pour que l'appelant corrige sa route sans ouvrir les logs.
+     */
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ApiResponse<Void>> handleNoSuchEndpoint(Exception ex, HttpServletRequest request) {
+        String method = request.getMethod();
+        String path = request.getRequestURI();
+        log.warn("Aucun endpoint pour {} {} — 404", method, path);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("ENDPOINT_NOT_FOUND",
+                        "Aucun endpoint " + method + " " + path
+                                + " sur ce microservice. Vérifiez la route dans api-gateway/application.yml."));
+    }
+
+    /*
+     * Méthode HTTP non supportée sur une route existante (405 attendu).
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        log.warn("Méthode non supportée : {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiResponse.error("METHOD_NOT_ALLOWED", ex.getMessage()));
     }
 
     /*
