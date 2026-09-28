@@ -52,11 +52,11 @@ spring:
         - id: tour-service
           uri: lb://tour-service
           predicates:
-            - Path=/api/v1/tours/**, /api/v1/checkpoints/**, /api/v1/pickup-requests/**, /api/v1/transporter-contracts/**, /v3/api-docs/tour-service
+            - Path=/api/v1/tours/**, /api/v1/checkpoints/**, /api/v1/pickup-requests/**, /api/v1/pickups/**, /api/v1/transporter-contracts/**, /api/v1/contracts/**, /v3/api-docs/tour-service
         - id: cylinder-service
           uri: lb://cylinder-service
           predicates:
-            - Path=/api/v1/cylinders/**, /api/v1/rfid-tags/**, /api/v1/cylinder-movements/**, /api/v1/scan-events/**, /api/v1/inventory-snapshots/**, /v3/api-docs/cylinder-service
+            - Path=/api/v1/cylinders/**, /api/v1/rfid-tags/**, /api/v1/rfid/**, /api/v1/cylinder-movements/**, /api/v1/scan-events/**, /api/v1/scans/**, /api/v1/inventory-snapshots/**, /v3/api-docs/cylinder-service
         - id: fleet-device-service
           uri: lb://fleet-device-service
           predicates:
