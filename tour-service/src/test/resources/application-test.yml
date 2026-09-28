@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: tour-service-it
+  datasource:
+    # TOUR_IT_DB_URL doubles as the opt-in switch (TourLifecycleIT is gated on it
+    # via @EnabledIfEnvironmentVariable) and as the URL override. Setting the one
+    # variable is therefore the whole procedure; the composed default keeps the
+    # docker-compose tour database working.
+    url: ${TOUR_IT_DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:55432}/gpl_tour_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+  sql:
+    init:
+      mode: never
+
+eureka:
+  client:
+    enabled: false
+  instance:
+    leaseRenewalIntervalInSeconds: 1
+    leaseExpirationDurationInSeconds: 2
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: when_authorized
+
+logging:
+  level:
+    com.gpl.tour: INFO
+    org.springframework.web: WARN
+    org.hibernate: WARN

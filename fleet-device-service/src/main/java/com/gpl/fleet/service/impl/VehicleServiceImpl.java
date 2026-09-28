@@ -49,11 +49,11 @@ public class VehicleServiceImpl implements VehicleService {
         if (request.getIsActive() != null) {
             vehicle.setActive(request.getIsActive());
         }
-        if (request.getStatus() != null) {
-            vehicle.setStatus(request.getStatus());
-        }
-        if (request.getStatusDescription() != null) {
-            vehicle.setStatusDescription(request.getStatusDescription());
+        if (request.getStatus() != null || request.getStatusDescription() != null) {
+            vehicle.updateStatus(
+                    request.getStatus() != null ? request.getStatus() : vehicle.getStatus(),
+                    request.getStatusDescription() != null
+                            ? request.getStatusDescription() : vehicle.getStatusDescription());
         }
         vehicle.setCreatedBy(createdBy != null ? createdBy : "SYSTEM");
 
@@ -101,11 +101,11 @@ public class VehicleServiceImpl implements VehicleService {
         if (request.getIsActive() != null) {
             vehicle.setActive(request.getIsActive());
         }
-        if (request.getStatus() != null) {
-            vehicle.setStatus(request.getStatus());
-        }
-        if (request.getStatusDescription() != null) {
-            vehicle.setStatusDescription(request.getStatusDescription());
+        if (request.getStatus() != null || request.getStatusDescription() != null) {
+            vehicle.updateStatus(
+                    request.getStatus() != null ? request.getStatus() : vehicle.getStatus(),
+                    request.getStatusDescription() != null
+                            ? request.getStatusDescription() : vehicle.getStatusDescription());
         }
         vehicle.setChangeby(changedBy != null ? changedBy : "SYSTEM");
 

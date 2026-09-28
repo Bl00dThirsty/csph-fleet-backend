@@ -31,13 +31,19 @@ public class TourController {
     private final TourService tourService;
 
     /*
-     * Retrieves all tours with pagination.
+     * Retrieves all tours with pagination, optionally scoped to one driver.
+     *
+     * driverPersonId is what the livreur PDA sends. It was previously accepted by
+     * nobody and silently dropped, so a driver asking for "my tours" received the
+     * marketer's whole fleet.
      */
     @RequiresPermission("TOUR_VIEW")
     @GetMapping
-    public ResponseEntity<ApiResponse<PageResponse<TourResponseDto>>> listTours(Pageable pageable) {
-        log.info("REST request to get a page of Tours");
-        return ResponseEntity.ok(ApiResponse.ok(tourService.getAll(pageable)));
+    public ResponseEntity<ApiResponse<PageResponse<TourResponseDto>>> listTours(
+            @RequestParam(required = false) String driverPersonId,
+            Pageable pageable) {
+        log.info("REST request to get a page of Tours (driverPersonId={})", driverPersonId);
+        return ResponseEntity.ok(ApiResponse.ok(tourService.getAll(driverPersonId, pageable)));
     }
 
     /*
@@ -88,7 +94,42 @@ public class TourController {
         return ResponseEntity.ok(ApiResponse.ok(null, "Tour deleted successfully"));
     }
 
-    /* ── Phase 3 Lifecycle & Dynamic Assignment Endpoints ─────────────────── */
+    /* ── Flux 2 Lifecycle Endpoints ────────────────────────────────────────
+     *
+     * plan / send-to-transporter / acknowledge were missing entirely, which made
+     * the 8-state chain unreachable: without them neither an INTERNAL tour could
+     * reach INPROGRESS nor an EXTERNAL one could leave DRAFT. Both seeded tours are
+     * EXTERNAL, so before this they were dead ends.
+     * ────────────────────────────────────────────────────────────────────── */
+
+    @RequiresPermission("TOUR_UPDATE")
+    @PostMapping("/{id}/plan")
+    public ResponseEntity<ApiResponse<TourResponseDto>> planTour(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request to plan Tour: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(tourService.plan(id, username), "Tournée planifiée avec succès"));
+    }
+
+    @RequiresPermission("TOUR_ACK")
+    @PostMapping("/{id}/send-to-transporter")
+    public ResponseEntity<ApiResponse<TourResponseDto>> sendToTransporter(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request to send Tour to transporter: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(
+                tourService.sendToTransporter(id, username), "Tournée transmise au transporteur"));
+    }
+
+    @RequiresPermission("TOUR_ACK")
+    @PostMapping("/{id}/acknowledge")
+    public ResponseEntity<ApiResponse<TourResponseDto>> acknowledgeTour(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("REST request for transporter acknowledgement of Tour: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(
+                tourService.acknowledge(id, username), "Accusé de réception du transporteur enregistré"));
+    }
 
     @RequiresPermission("TOUR_START")
     @PostMapping("/{id}/start")
@@ -106,6 +147,9 @@ public class TourController {
             @RequestParam(required = false) Double loadedQuantity,
             @RequestParam(required = false) Double deliveredQuantity,
             @RequestHeader(value = "X-User-Username", required = false) String username) {
+        // deliveredQuantity is validated by the service, not here: it is the subsidy
+        // reconciliation input, and it stays a query parameter so the web client and
+        // the livreur PDA keep working unchanged.
         log.info("REST request to close Tour: {}", id);
         return ResponseEntity.ok(ApiResponse.ok(tourService.closeTour(id, loadedQuantity, deliveredQuantity, username), "Tournée clôturée avec succès"));
     }

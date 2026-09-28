@@ -13,8 +13,16 @@ public class UpdatePersonRequest {
     private String city;
     private String avatarUrl;
     private String supervisorId;
-    private Integer deviceClass;
-    private String deviceClassDescription;
+    /**
+     * Staff transfer: moving a person to another org/site. Absent from the
+     * original DTO, which made seeded rows (e.g. a driver created under a
+     * transporter) impossible to re-home to their real org via the API.
+     */
+    private String organizationId;
+    private String orgId;
+    private String primarySiteId;
+    private String siteId;
+    private Integer deviceClass;    private String deviceClassDescription;
     private String wfMailElection;
     private String transEmailElection;
 }

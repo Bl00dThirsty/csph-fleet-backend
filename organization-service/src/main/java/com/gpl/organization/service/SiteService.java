@@ -1,7 +1,8 @@
 package com.gpl.organization.service;
 
-import com.gpl.common.exception.DuplicateResourceException;
 import com.gpl.common.dto.PageResponse;
+import com.gpl.common.enums.EntityStatus;
+import com.gpl.common.exception.DuplicateResourceException;
 import com.gpl.organization.dto.*;
 import com.gpl.organization.model.Organization;
 import com.gpl.organization.model.Site;
@@ -96,9 +97,24 @@ public class SiteService {
     @Transactional
     public Site updateSiteStatus(String id, UpdateStatusRequest request, String changedBy) {
         Site site = siteRepository.findById(id).orElseThrow(() -> new RuntimeException("Site not found"));
-        site.setStatus(request.getNewStatus());
+        // This previously called setStatus alone, leaving status_description and
+        // status_date describing the *previous* status. updateStatus moves all three
+        // together, which is the point of the Maximo code+label pair.
+        site.updateStatus(request.getNewStatus(), resolveStatusLabel(request.getNewStatus()));
         site.setChangeby(changedBy);
         return siteRepository.save(site);
+    }
+
+    /**
+     * Human label for a site status code, falling back to the raw code so an
+     * unknown value is still legible rather than silently mislabelled "Actif".
+     */
+    private String resolveStatusLabel(String code) {
+        try {
+            return EntityStatus.fromCode(code).getDescription();
+        } catch (IllegalArgumentException unknown) {
+            return code;
+        }
     }
 
     private SiteResponse buildSiteResponse(Site site) {

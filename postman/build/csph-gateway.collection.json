@@ -25,7 +25,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "actuator",
                 "health"
               ]
@@ -38,50 +37,6 @@
               "script": {
                 "type": "text/javascript",
                 "exec": "pm.test('gateway actuator reachable', function () {\n    pm.expect(pm.response.code).to.be.oneOf([200, 401, 404]);\n});\nif (pm.response.code === 200) {\n    const h = pm.response.json();\n    pm.test('health status UP', function () { pm.expect(h.status).to.eql('UP'); });\n}"
-              }
-            }
-          ]
-        },
-        {
-          "name": "actuator health (authenticated -> expect 200)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}",
-                "type": "text"
-              },
-              {
-                "key": "X-User-PersonId",
-                "value": "{{personId}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{gateway}}/actuator/health",
-              "host": [
-                "{{gateway}}"
-              ],
-              "path": [
-                "",
-                "actuator",
-                "health"
-              ]
-            },
-            "description": "Run this **after** `01 - Auth > POST /api/v1/auth/login`. With a valid bearer token the gateway JWT filter lets the\nrequest through and the actuator answers a hard **200** with `{\"status\":\"UP\"}`."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": "pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });\npm.test('a token was captured (run 01 - Auth first)', function () {\n    pm.expect(pm.collectionVariables.get('accessToken')).to.be.a('string').and.to.have.length.above(0);\n});\nconst h = pm.response.json();\npm.test('health status UP', function () { pm.expect(h.status).to.eql('UP'); });"
               }
             }
           ]
@@ -103,7 +58,6 @@
                 "{{eureka}}"
               ],
               "path": [
-                "",
                 "eureka",
                 "apps"
               ]
@@ -137,7 +91,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "v3",
                 "api-docs",
                 "auth-service"
@@ -172,7 +125,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "v3",
                 "api-docs",
                 "organization-service"
@@ -207,7 +159,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "v3",
                 "api-docs",
                 "user-service"
@@ -242,7 +193,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "v3",
                 "api-docs",
                 "audit-service"
@@ -277,7 +227,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "v3",
                 "api-docs",
                 "notification-service"
@@ -312,7 +261,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "v3",
                 "api-docs",
                 "tour-service"
@@ -347,7 +295,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "v3",
                 "api-docs",
                 "cylinder-service"
@@ -382,7 +329,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "v3",
                 "api-docs",
                 "fleet-device-service"
@@ -417,7 +363,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "v3",
                 "api-docs",
                 "subsidy-service"
@@ -458,7 +403,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "auth",
@@ -487,6 +431,49 @@
           ]
         },
         {
+          "name": "actuator health (authenticated -> expect 200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "X-User-PersonId",
+                "value": "{{personId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/actuator/health",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            },
+            "description": "Run this **after** `01 - Auth > POST /api/v1/auth/login`. With a valid bearer token the gateway JWT filter lets the\nrequest through and the actuator answers a hard **200** with `{\"status\":\"UP\"}`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": "pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });\npm.test('a token was captured (run 01 - Auth first)', function () {\n    pm.expect(pm.collectionVariables.get('accessToken')).to.be.a('string').and.to.have.length.above(0);\n});\nconst h = pm.response.json();\npm.test('health status UP', function () { pm.expect(h.status).to.eql('UP'); });"
+              }
+            }
+          ]
+        },
+        {
           "name": "POST /api/v1/auth/refresh",
           "request": {
             "method": "POST",
@@ -503,7 +490,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "auth",
@@ -558,7 +544,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "me"
@@ -603,7 +588,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "me",
@@ -649,7 +633,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "me"
@@ -703,7 +686,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "auth",
@@ -750,7 +732,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations"
@@ -785,7 +766,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations"
@@ -820,7 +800,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "sites"
@@ -871,7 +850,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations"
@@ -922,7 +900,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations",
@@ -968,7 +945,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations"
@@ -1022,7 +998,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations",
@@ -1077,7 +1052,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations",
@@ -1133,7 +1107,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations",
@@ -1180,7 +1153,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations",
@@ -1227,7 +1199,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "sites"
@@ -1278,7 +1249,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "sites",
@@ -1324,7 +1294,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "sites",
@@ -1384,7 +1353,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "sites"
@@ -1438,7 +1406,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "sites",
@@ -1494,7 +1461,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "client-sites"
@@ -1539,7 +1505,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "client-sites"
@@ -1593,7 +1558,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "client-sites",
@@ -1640,7 +1604,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "classifications"
@@ -1685,7 +1648,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organization-relationships"
@@ -1739,7 +1701,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations",
@@ -1800,11 +1761,9 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "roles",
-                ""
+                "roles"
               ]
             },
             "description": "Bootstrap request, deliberately placed first in this folder.\n\n`POST /persons/{id}/roles` needs a `roleId`, but `POST /roles/` runs twelve requests later - so without this\nbootstrap the assignment step would send an empty `roleId` and fail `@NotBlank` validation. It captures the first\nexisting role (normally `SUPERADMIN`) as a usable `roleId`. `POST /roles/` later overwrites it with the role it\ncreates, which is what the three requests after that one use.\n\nEnveloped **array** (`ApiResponse<List<RoleResponse>>`), **not** a paged object. The trailing slash is required."
@@ -1846,11 +1805,9 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "persons",
-                ""
+                "persons"
               ],
               "query": [
                 {
@@ -1898,11 +1855,9 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "users",
-                ""
+                "users"
               ],
               "query": [
                 {
@@ -1950,7 +1905,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -1996,7 +1950,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -2043,11 +1996,9 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "persons",
-                ""
+                "persons"
               ]
             },
             "description": "`CreatePersonRequest` requires only `firstName` + `lastName`. The nested `phones` / `emails` arrays are optional and\nare exactly what the `/phones` and `/emails` sub-resources return afterwards - the assertions two requests down\nverify that round-trip rather than just the shape.\n\n`email` carries `{{uniq}}` so repeated runs do not collide on the unique-email constraint.\n\nReturns **200, not 201** - the handler returns `ApiResponse` directly rather than through a `ResponseEntity`, so\nSpring's default 200 applies. There is also a sibling `POST /persons/with-auth` that additionally provisions\nauth-service credentials, which is what a driver account needs.\n\nThere is **no** `DELETE /persons/{id}`: persons are never deleted through this API.\n\nOverwrites `personIdNew` (the new UUID) and `personIdLogin` (its business key) for the rest of the folder.",
@@ -2098,7 +2049,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -2153,7 +2103,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -2209,7 +2158,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -2256,7 +2204,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -2303,7 +2250,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -2350,7 +2296,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -2406,7 +2351,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -2453,7 +2397,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -2509,7 +2452,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -2556,11 +2498,9 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "roles",
-                ""
+                "roles"
               ]
             },
             "description": "The full role list. Despite looking like the paged `/persons/` and `/organizations/` endpoints, this one is\n`ApiResponse<List<RoleResponse>>` - an **enveloped array, not a `PageResponse`**. Same for `/groups/` and\n`/permissions/`.\n\nTrailing slash required (`@GetMapping(\"/\")`)."
@@ -2602,11 +2542,9 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "roles",
-                ""
+                "roles"
               ]
             },
             "description": "`CreateRoleRequest` requires `code` + `name`, and `Role.code` is `UNIQUE` - hence `{{uniq}}`.\n\n**These roles live in the `roles` table (JPA `Role` entity), not the seeded `system_roles` enum table.** That is why\nan arbitrary code like `ROLE-PM...` is accepted here even though the 8 seeded `system_role` names (SUPERADMIN, ADMIN,\nSUPERVISOR, INTEGRATEUR, AGENT, MARKETEUR, TRANSPORTEUR, LIVREUR) are a closed Postgres enum on the *other* table.\nTwo role concepts, one API surface - worth knowing before you try to create a role named `SUPERADMIN`.\n\nOverwrites `roleId`, so the three requests after this one operate on the new role.",
@@ -2657,7 +2595,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "roles",
@@ -2703,7 +2640,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "roles",
@@ -2750,7 +2686,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "roles",
@@ -2803,11 +2738,9 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "permissions",
-                ""
+                "permissions"
               ]
             },
             "description": "The whole permission catalog, straight from `repository.findAll()`. Enveloped **array**, trailing slash required.\n\nThis is the authoritative list of the `code` strings that every `@RequiresPermission` in the platform checks\nagainst, and the source of `{{permissionId}}` for the grant request above.\n\nNote the two coexisting naming styles: organization / user / tour / fleet services use UPPER_SNAKE codes\n(`ORG_VIEW`, `SITE_CREATE`, `TOUR_START`, `CHECKPOINT_SKIP`, `fleet.vehicles.read`), while older core modules use\ndotted lower-case (`tours.create`). Both styles are live in the same `permissions` table."
@@ -2849,7 +2782,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "permissions",
@@ -2895,11 +2827,9 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "groups",
-                ""
+                "groups"
               ]
             },
             "description": "User groups - permission bundles used for a bulk grant instead of per-person role assignment. Enveloped **array**,\ntrailing slash required.\n\n`GroupResponse.memberCount` is maintained denormalised on the row, so this list is the cheapest way to see group\nsizes without an N+1 storm of member calls."
@@ -2941,11 +2871,9 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "groups",
-                ""
+                "groups"
               ]
             },
             "description": "`CreateGroupRequest` requires `code`, `name`, `organizationId`. `user_groups.code` is `UNIQUE` (100 chars), so\n`{{uniq}}` keeps the folder re-runnable. `siteId` is optional and scopes the group to one site.\n\n`isSystemGroup` is deliberately **not** settable from the API - system groups are the ones the seeder owns and\nshould not be editable through a REST call.",
@@ -2996,7 +2924,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "groups",
@@ -3042,7 +2969,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "groups",
@@ -3089,7 +3015,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "groups",
@@ -3160,7 +3085,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles"
@@ -3211,7 +3135,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours"
@@ -3262,7 +3185,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours"
@@ -3316,7 +3238,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -3362,7 +3283,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -3417,7 +3337,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -3470,7 +3389,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -3523,7 +3441,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -3570,7 +3487,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -3617,7 +3533,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -3673,7 +3588,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "checkpoints",
@@ -3719,7 +3633,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "checkpoints",
@@ -3774,7 +3687,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "checkpoints",
@@ -3821,7 +3733,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "checkpoints",
@@ -3874,7 +3785,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -3931,7 +3841,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "pickups"
@@ -3982,7 +3891,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "pickups"
@@ -4036,7 +3944,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "pickups",
@@ -4089,7 +3996,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "pickups",
@@ -4136,7 +4042,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "contracts"
@@ -4187,7 +4092,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "contracts"
@@ -4241,7 +4145,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "contracts",
@@ -4288,7 +4191,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "contracts",
@@ -4335,7 +4237,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -4396,7 +4297,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders"
@@ -4447,7 +4347,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders"
@@ -4501,7 +4400,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders",
@@ -4547,7 +4445,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders",
@@ -4602,7 +4499,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders",
@@ -4658,7 +4554,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "rfid"
@@ -4709,7 +4604,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "rfid"
@@ -4763,7 +4657,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "rfid",
@@ -4809,7 +4702,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "rfid",
@@ -4856,7 +4748,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "rfid",
@@ -4911,7 +4802,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "scans"
@@ -4962,7 +4852,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "scans"
@@ -5016,7 +4905,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "scans",
@@ -5062,7 +4950,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "scans",
@@ -5118,7 +5005,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders",
@@ -5179,7 +5065,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles"
@@ -5230,7 +5115,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles"
@@ -5284,7 +5168,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles",
@@ -5330,7 +5213,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles",
@@ -5385,7 +5267,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "devices"
@@ -5436,7 +5317,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "devices"
@@ -5490,7 +5370,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "devices",
@@ -5536,7 +5415,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "devices",
@@ -5591,7 +5469,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "devices",
@@ -5647,7 +5524,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "devices",
@@ -5694,7 +5570,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "telemetry"
@@ -5748,7 +5623,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "telemetry",
@@ -5796,7 +5670,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "telemetry",
@@ -5853,7 +5726,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles",
@@ -5914,7 +5786,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations"
@@ -5965,7 +5836,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations"
@@ -6019,7 +5889,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations",
@@ -6065,7 +5934,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations",
@@ -6120,7 +5988,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations",
@@ -6167,7 +6034,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations",
@@ -6224,7 +6090,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations",
@@ -6281,7 +6146,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations",
@@ -6338,7 +6202,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "reconciliations"
@@ -6389,7 +6252,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "reconciliations"
@@ -6443,7 +6305,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "reconciliations",
@@ -6489,7 +6350,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "reconciliations",
@@ -6536,7 +6396,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "reconciliations",
@@ -6593,7 +6452,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "redressements"
@@ -6644,7 +6502,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "redressements"
@@ -6698,7 +6555,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "redressements",
@@ -6744,7 +6600,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "redressements",
@@ -6797,7 +6652,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "redressements",
@@ -6859,7 +6713,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "audit",
@@ -6923,7 +6776,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "audit",
@@ -6979,7 +6831,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "audit",
@@ -7027,7 +6878,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "audit",
@@ -7097,7 +6947,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "notification-templates"
@@ -7151,7 +7000,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "notification-templates"
@@ -7196,7 +7044,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "notification-templates",
@@ -7242,7 +7089,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "notifications",

@@ -7,6 +7,7 @@ import com.gpl.user.dto.*;
 import com.gpl.user.model.Person;
 import com.gpl.user.model.PersonEmail;
 import com.gpl.user.model.PersonPhone;
+import com.gpl.user.model.Role;
 import com.gpl.user.model.UserRoleAssignment;
 import com.gpl.user.repository.PersonEmailRepository;
 import com.gpl.user.repository.PersonPhoneRepository;
@@ -74,9 +75,7 @@ public class PersonService {
         person.setSupervisorId(request.getSupervisorId());
         person.setDeviceClass(request.getDeviceClass() != null ? request.getDeviceClass() : 0);
 
-        person.setStatus(EntityStatus.ACTIVE.getCode());
-        person.setStatusDescription(EntityStatus.ACTIVE.getDescription());
-        person.setStatusDate(Instant.now());
+        person.updateStatus(EntityStatus.ACTIVE.getCode(), EntityStatus.ACTIVE.getDescription());
         person.setCreatedBy(createdBy != null ? createdBy : "SYSTEM");
 
         Person saved = personRepository.save(person);
@@ -120,19 +119,53 @@ public class PersonService {
      * @param createdBy the identifier of the user creating this person
      * @return the created person response
      */
+    /**
+     * Maps a role coming from a client onto a seeded role code.
+     *
+     * <p>The web client keeps French UI names ({@code LIVREUR}, {@code MARKETEUR},
+     * {@code TRANSPORTEUR}) while the seeded catalogue in
+     * {@code RolesPermissionsInitializer} uses {@code DRIVER}, {@code MARKETER}
+     * and {@code TRANSPORTER}. Without this the lookup below would 404 on every
+     * non-English caller and the person would end up with no role at all.
+     * Anything already matching a seeded code is passed through untouched.
+     */
+    private String normalizeRoleCode(String role) {
+        if (role == null || role.isBlank()) {
+            return "DRIVER";
+        }
+        return switch (role.trim().toUpperCase(Locale.ROOT)) {
+            case "LIVREUR", "CHAUFFEUR", "DRIVER" -> "DRIVER";
+            case "MARKETEUR", "MARKETER" -> "MARKETER";
+            case "TRANSPORTEUR", "TRANSPORTER" -> "TRANSPORTER";
+            default -> role.trim();
+        };
+    }
+
     @Transactional
     public PersonResponse createPersonWithAuth(CreatePersonWithAuthRequest request, String createdBy) {
         PersonResponse personResponse = createPerson(request, createdBy);
 
-        // Assign role if specified or default to DRIVER/LIVREUR
-        String roleToAssign = request.getRoleName() != null && !request.getRoleName().isBlank()
+        // Assign role if specified or default to DRIVER.
+        //
+        // The value written to user_role_assignments.roleId MUST be the roles.id
+        // UUID, never the code: PermissionService.resolvePermissions looks the
+        // assignment up with rolePermissionRepo.findPermissionCodesByRoleId(),
+        // which joins on the id. Writing "DRIVER" there produced a user that
+        // authenticated successfully but whose JWT carried zero permissions,
+        // because nothing resolves a role from its code.
+        String requestedRole = request.getRoleName() != null && !request.getRoleName().isBlank()
                 ? request.getRoleName()
-                : (request.getJobCode() != null ? request.getJobCode() : "LIVREUR");
+                : (request.getJobCode() != null ? request.getJobCode() : "DRIVER");
+        final String roleCode = normalizeRoleCode(requestedRole);
 
         try {
+            String roleId = roleRepository.findByCode(roleCode)
+                    .map(Role::getId)
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown role code: " + roleCode));
+
             UserRoleAssignment assignment = new UserRoleAssignment();
             assignment.setPersonId(personResponse.getPersonId());
-            assignment.setRoleId(roleToAssign);
+            assignment.setRoleId(roleId);
             assignment.setOrganizationId(request.getOrganizationId() != null ? request.getOrganizationId() : request.getOrgId());
             assignment.setSiteId(request.getPrimarySiteId());
             assignment.setPrimary(true);
@@ -140,9 +173,13 @@ public class PersonService {
             assignment.setCreatedBy(createdBy != null ? createdBy : "SYSTEM");
             assignment.setCreatedAt(Instant.now());
             roleAssignmentRepository.save(assignment);
-            log.info("Assigned role {} to person {}", roleToAssign, personResponse.getPersonId());
+            log.info("Assigned role {} ({}) to person {}", roleCode, roleId, personResponse.getPersonId());
         } catch (Exception e) {
-            log.warn("Could not create role assignment automatically: {}", e.getMessage());
+            // Loud, because a person without a resolvable role is a user who can
+            // log in and then do absolutely nothing — a silent warning here is
+            // exactly how that ships unnoticed.
+            log.error("Could not assign role {} to person {}: {}",
+                    roleCode, personResponse.getPersonId(), e.getMessage(), e);
         }
 
         // Provision authentication credentials in auth-service
@@ -186,6 +223,15 @@ public class PersonService {
         if (request.getCity() != null) person.setCity(request.getCity());
         if (request.getAvatarUrl() != null) person.setAvatarUrl(request.getAvatarUrl());
         if (request.getSupervisorId() != null) person.setSupervisorId(request.getSupervisorId());
+        // Staff transfer — re-home the person to their real org/site.
+        if (request.getOrganizationId() != null) person.setOrganizationId(request.getOrganizationId());
+        if (request.getOrgId() != null) {
+            person.setOrgId(request.getOrgId());
+        } else if (request.getOrganizationId() != null) {
+            person.setOrgId(request.getOrganizationId());
+        }
+        if (request.getPrimarySiteId() != null) person.setPrimarySiteId(request.getPrimarySiteId());
+        if (request.getSiteId() != null) person.setSiteId(request.getSiteId());
         if (request.getDeviceClass() != null) person.setDeviceClass(request.getDeviceClass());
         if (request.getDeviceClassDescription() != null) person.setDeviceClassDescription(request.getDeviceClassDescription());
         if (request.getWfMailElection() != null) person.setWfMailElection(request.getWfMailElection());
@@ -244,9 +290,12 @@ public class PersonService {
     public PersonResponse updatePersonStatus(String id, UpdateStatusRequest request, String changedBy) {
         Person person = personRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Person not found"));
-        person.setStatus(request.getNewStatus());
-        person.setStatusDescription(request.getReason());
-        person.setStatusDate(Instant.now());
+        // Behaviour preserved verbatim: the free-text reason was already being written
+        // into status_description, which the Maximo pattern reserves for the label.
+        // Two consequences carried over unchanged — a null reason violates the column's
+        // NOT NULL, and the "label" reads as prose. Tracked for the Site/Person
+        // lifecycle work; not fixed here because this pass is mechanical.
+        person.updateStatus(request.getNewStatus(), request.getReason());
         person.setChangeby(changedBy);
         person.setChangedate(Instant.now());
         return buildPersonResponse(personRepository.save(person));

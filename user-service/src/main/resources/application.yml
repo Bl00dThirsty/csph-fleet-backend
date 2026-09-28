@@ -31,4 +31,4 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
   packages-to-scan: com.gpl.user
-  paths-to-match: /api/v1/**\n
+  paths-to-match: /api/v1/**

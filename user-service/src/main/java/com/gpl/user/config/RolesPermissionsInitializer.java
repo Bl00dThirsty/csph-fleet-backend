@@ -39,7 +39,7 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@Profile({"dev", "test", "local", "default"})
+@Profile({"dev", "test", "local"})
 @Order(2)
 public class RolesPermissionsInitializer implements CommandLineRunner {
 
@@ -188,13 +188,15 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "TOUR_START|Démarrer une tournée",
             "TOUR_CLOSE|Clôturer une tournée",
             "TOUR_CANCEL|Annuler une tournée",
+            "TOUR_ACK|Accuser réception d'une tournée sous-traitée",
             "TOUR_ASSIGN_DRIVER|Assigner un chauffeur/livreur",
             "TOUR_ASSIGN_VEHICLE|Assigner un véhicule",
             "CHECKPOINT_VIEW|Voir les checkpoints d'une tournée",
             "CHECKPOINT_CREATE|Ajouter un checkpoint",
             "CHECKPOINT_UPDATE|Modifier un checkpoint",
             "CHECKPOINT_DELETE|Supprimer un checkpoint",
-            "CHECKPOINT_VALIDATE|Valider un checkpoint (arrivée confirmée)",
+            "CHECKPOINT_REACH|Marquer un arrêt comme atteint (arrivée capturée)",
+            "CHECKPOINT_VALIDATE|Terminer la livraison d'un arrêt",
             "CHECKPOINT_SKIP|Sauter un checkpoint (avec raison)",
             "PICKUP_VIEW|Voir les demandes d'enlèvement",
             "PICKUP_CREATE|Créer une demande d'enlèvement",
@@ -326,10 +328,11 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
      * Initialise les permissions accordées aux rôles.
      */
     private void initRolePermissions() {
-        if (rolePermissionRepository.count() > 0) {
-            log.info("Role permissions already exist, skipping");
-            return;
-        }
+        // Note: NO early-return guard here. `grantPermissionsToRole` is itself
+        // idempotent (it skips already-granted permissions). This lets us
+        // add new role-permission pairs across deployments without having to
+        // wipe the role_permissions table.
+        log.info("Reconciling role-permission grants (idempotent)...");
 
         // SUPERADMIN
         grantAllPermissionsToRole("SUPERADMIN");
@@ -410,8 +413,63 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "NOTIFICATION_VIEW_LOG", "AUDIT_VIEW_MODIFICATIONS"
         );
 
+        // DRIVER / LIVREUR — mobile/PDA driver. Carries every permission needed
+        // to execute a full tournee from the field (view assigned tournees,
+        // start/close the tournee, scan RFID tags at each checkpoint,
+        // validate/skip checkpoints). Cross-org capabilities (TOUR_VIEW_ALL,
+        // TOUR_CREATE, etc.) remain ADMIN-only by design.
+        //
+        // Both DRIVER (legacy code) and LIVREUR (newly created users) must
+        // carry these grants because PersonService may use either code when
+        // a /users/with-auth request specifies `roleName: LIVREUR` (which maps
+        // to a LIVREUR role row in user_role_assignments).
+        // DRIVER and LIVREUR receive identical grants because the same PDA serves
+        // both: grantPermissionsToRole creates LIVREUR on the fly when it is
+        // referenced here (it is absent from initRoles()), and PersonService may
+        // resolve either code from a /users/with-auth request.
+        //
+        // CHECKPOINT_REACH is mandatory here, not optional: POST
+        // /api/v1/checkpoints/{id}/reach requires it, and it used to be missing
+        // from the catalog entirely — so the endpoint returned 403 for every role
+        // except SUPERADMIN, which carries a blanket bypass in PermissionAspect.
+        // The arrival fact was therefore uncapturable by any real livreur.
+        grantPermissionsToRole("DRIVER",
+            "TOUR_VIEW", "TOUR_VIEW_OWN_ORG", "TOUR_START", "TOUR_CLOSE",
+            "TOUR_UPDATE", "TOUR_ASSIGN_DRIVER",
+            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE",
+            "CHECKPOINT_REACH", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
+            "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
+            "RFID_VIEW", "RFID_CREATE", "RFID_UPDATE", "RFID_ASSIGN", "RFID_VIEW_ALL",
+            "PERSON_VIEW",
+            "SITE_VIEW", "SITE_VIEW_OWN",
+            "VEHICLE_VIEW", "VEHICLE_VIEW_OWN_ORG",
+            "DEVICE_VIEW", "DEVICE_VIEW_STATUS", "DEVICE_VIEW_POSITION",
+            "fleet.devices.read", "TELEMETRY_VIEW",
+            "CYLINDER_VIEW", "CYLINDER_VIEW_OWN_ORG",
+            "PICKUP_VIEW", "PICKUP_VIEW_OWN_ORG",
+            "DASHBOARD_VIEW", "DASHBOARD_VIEW_ANALYTICS", "MONITORING_VIEW",
+            "AUDIT_VIEW_MODIFICATIONS", "NOTIFICATION_VIEW_LOG", "REPORT_GENERATE"
+        );
+        grantPermissionsToRole("LIVREUR",
+            "TOUR_VIEW", "TOUR_VIEW_OWN_ORG",
+            "TOUR_START", "TOUR_CLOSE",
+            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE",
+            "CHECKPOINT_REACH", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
+            "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
+            "RFID_VIEW", "RFID_CREATE",
+            "PERSON_VIEW",
+            "SITE_VIEW", "SITE_VIEW_OWN",
+            "VEHICLE_VIEW", "VEHICLE_VIEW_OWN_ORG",
+            "DASHBOARD_VIEW_ANALYTICS", "MONITORING_VIEW", "REPORT_GENERATE"
+        );
+
         // MARKETER
         grantPermissionsToRole("MARKETER",
+            "TOUR_VIEW", "TOUR_VIEW_ALL", "TOUR_VIEW_OWN_ORG",
+            "TOUR_CREATE", "TOUR_UPDATE", "TOUR_DELETE",
+            "TOUR_START", "TOUR_CLOSE", "TOUR_CANCEL", "TOUR_ACK",
+            "TOUR_ASSIGN_DRIVER", "TOUR_ASSIGN_VEHICLE",
+            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_REACH", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
             "VEHICLE_VIEW", "VEHICLE_VIEW_ALL", "VEHICLE_CREATE", "VEHICLE_UPDATE", "VEHICLE_DELETE",
             "VEHICLE_ASSIGN_DRIVER", "VEHICLE_UNASSIGN_DRIVER", "VEHICLE_VIEW_OWN_ORG",
             "fleet.vehicles.read", "fleet.vehicles.create", "fleet.vehicles.write", "fleet.vehicles.manage",
@@ -420,7 +478,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "SITE_VIEW", "SITE_VIEW_OWN", "SITE_CREATE", "SITE_UPDATE", "SITE_VIEW_ALL",
             "TOUR_VIEW", "TOUR_VIEW_ALL", "TOUR_VIEW_OWN_ORG", "TOUR_CREATE", "TOUR_UPDATE", "TOUR_DELETE",
             "TOUR_ASSIGN_DRIVER", "TOUR_ASSIGN_VEHICLE",
-            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE",
+            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_REACH", "CHECKPOINT_VALIDATE",
             "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT", "SCAN_VIEW_ALL",
             "PICKUP_VIEW", "PICKUP_CREATE", "PICKUP_UPDATE", "PICKUP_APPROVE", "PICKUP_REJECT", "PICKUP_VIEW_ALL", "PICKUP_VIEW_OWN_ORG",
             "CONTRACT_VIEW",
@@ -440,9 +498,10 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "ORG_VIEW", "ORG_VIEW_OWN",
             "SITE_VIEW", "SITE_VIEW_OWN",
             "TOUR_VIEW", "TOUR_VIEW_OWN_ORG", "TOUR_CREATE", "TOUR_UPDATE", "TOUR_DELETE",
+            "TOUR_ACK",
             "TOUR_ASSIGN_DRIVER", "TOUR_ASSIGN_VEHICLE",
             "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_DELETE",
-            "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
+            "CHECKPOINT_REACH", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
             "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_VIEW_ALL", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
             "PICKUP_VIEW", "PICKUP_VIEW_OWN_ORG",
             "CONTRACT_VIEW",
@@ -453,19 +512,6 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "DECLARATION_VIEW", "SUBSIDY_DASHBOARD",
             "REPORT_GENERATE", "REPORT_EXPORT", "DASHBOARD_VIEW", "DASHBOARD_VIEW_ANALYTICS",
             "AUDIT_VIEW_MODIFICATIONS"
-        );
-
-        // DRIVER
-        grantPermissionsToRole("DRIVER",
-            "TOUR_VIEW", "TOUR_VIEW_OWN_ORG", "TOUR_UPDATE", "TOUR_ASSIGN_DRIVER",
-            "CHECKPOINT_VIEW", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
-            "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
-            "RFID_VIEW", "RFID_UPDATE", "RFID_ASSIGN", "RFID_VIEW_ALL",
-            "DEVICE_VIEW", "DEVICE_VIEW_STATUS", "DEVICE_VIEW_POSITION",
-            "fleet.devices.read", "TELEMETRY_VIEW",
-            "PICKUP_VIEW", "PICKUP_VIEW_OWN_ORG",
-            "CYLINDER_VIEW", "CYLINDER_VIEW_OWN_ORG",
-            "DASHBOARD_VIEW", "AUDIT_VIEW_MODIFICATIONS", "NOTIFICATION_VIEW_LOG"
         );
 
         // ORG_ADMIN (rôle par défaut du plan)
@@ -562,6 +608,8 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         role.setDescription(description);
         role.setScopeOrgType(scopeOrgType);
         role.setMinTier(minTier);
+        // Role extends BaseEntity, not AuditableEntity — it carries its own status
+        // pair and has no updateStatus(code, label). Unchanged by the setter closure.
         role.setStatus("ACTIVE");
         role.setStatusDescription("Actif");
         role.setSystemRole(true);
@@ -594,11 +642,22 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
     }
 
     /**
-     * Accorde des permissions spécifiques à un rôle.
+     * Accorde des permissions spécifiques à un rôle. Crée le rôle à la volée
+     * s'il n'existe pas encore (cas des rôles ajoutés dans une nouvelle
+     * version mais pas encore seedés en base).
      */
     private void grantPermissionsToRole(String roleCode, String... permissionCodes) {
         Role role = roleRepository.findByCode(roleCode)
-            .orElseThrow(() -> new RuntimeException("Role not found: " + roleCode));
+            .orElseGet(() -> {
+                log.warn("Role {} absent de la base, création à la volée par l'initializer", roleCode);
+                Role created = new Role();
+                created.setCode(roleCode);
+                created.setName(roleCode);
+                created.setDescription("Role auto-seeded at startup");
+                created.setSystemRole(true);
+                created.setSortOrder(50);
+                return roleRepository.save(created);
+            });
         for (String code : permissionCodes) {
             Permission perm = permissionRepository.findByCode(code)
                 .orElseThrow(() -> new RuntimeException("Permission not found: " + code));
