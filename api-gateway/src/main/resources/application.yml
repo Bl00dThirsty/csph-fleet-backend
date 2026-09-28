@@ -29,6 +29,16 @@ spring:
           enabled: true
           lower-case-service-id: true
       routes:
+        # Prefixes below are the ONLY ones a controller actually serves. The
+        # phantom aliases that used to sit here (clients, regions, drivers,
+        # custom-roles, settings, anomalies, reports, pickup-requests,
+        # transporter-contracts, rfid-tags, cylinder-movements,
+        # inventory-snapshots, vehicle-positions, geofence-events, risk-scores)
+        # routed to services that expose no such controller, so they only ever
+        # produced a 404 that looked like a missing service.
+        #
+        # /api/v1/users/** is kept: PersonController is mapped to BOTH
+        # /api/v1/persons and /api/v1/users.
         - id: auth-service
           uri: lb://auth-service
           predicates:
@@ -36,35 +46,43 @@ spring:
         - id: organization-service
           uri: lb://organization-service
           predicates:
-            - Path=/api/v1/organizations/**, /api/v1/sites/**, /api/v1/classifications/**, /api/v1/organization-relationships/**, /api/v1/clients/**, /api/v1/client-sites/**, /api/v1/regions/**, /v3/api-docs/organization-service
+            - Path=/api/v1/organizations/**, /api/v1/sites/**, /api/v1/classifications/**, /api/v1/organization-relationships/**, /api/v1/client-sites/**, /v3/api-docs/organization-service
         - id: user-service
           uri: lb://user-service
           predicates:
-            - Path=/api/v1/persons/**, /api/v1/users/**, /api/v1/roles/**, /api/v1/permissions/**, /api/v1/groups/**, /api/v1/drivers/**, /api/v1/custom-roles/**, /v3/api-docs/user-service
+            - Path=/api/v1/persons/**, /api/v1/users/**, /api/v1/roles/**, /api/v1/permissions/**, /api/v1/groups/**, /v3/api-docs/user-service
         - id: audit-service
           uri: lb://audit-service
           predicates:
-            - Path=/api/v1/audit/**, /api/v1/settings/**, /v3/api-docs/audit-service
+            - Path=/api/v1/audit/**, /v3/api-docs/audit-service
         - id: notification-service
           uri: lb://notification-service
           predicates:
-            - Path=/api/v1/notifications/**, /api/v1/notification-templates/**, /api/v1/anomalies/**, /api/v1/reports/**, /v3/api-docs/notification-service
+            - Path=/api/v1/notifications/**, /api/v1/notification-templates/**, /v3/api-docs/notification-service
         - id: tour-service
           uri: lb://tour-service
           predicates:
-            - Path=/api/v1/tours/**, /api/v1/checkpoints/**, /api/v1/pickup-requests/**, /api/v1/pickups/**, /api/v1/transporter-contracts/**, /api/v1/contracts/**, /v3/api-docs/tour-service
+            # /api/v1/scan-events/** belongs here, NOT to cylinder-service:
+            # tour-service's ScanEventController is the one written for the livreur
+            # PDA ("les scans sont émis par le PDA embarqué du livreur lors du
+            # passage sur un arrêt de tournée") and it is the only one offering
+            # POST /bulk for offline resync. cylinder-service serves /api/v1/scans
+            # instead, and its controller reads X-User-PersonId rather than
+            # X-User-Username. Routing /scan-events to cylinder sent the driver's
+            # evidence to a service that cannot accept it.
+            - Path=/api/v1/tours/**, /api/v1/checkpoints/**, /api/v1/pickups/**, /api/v1/contracts/**, /api/v1/scan-events/**, /v3/api-docs/tour-service
         - id: cylinder-service
           uri: lb://cylinder-service
           predicates:
-            - Path=/api/v1/cylinders/**, /api/v1/rfid-tags/**, /api/v1/rfid/**, /api/v1/cylinder-movements/**, /api/v1/scan-events/**, /api/v1/scans/**, /api/v1/inventory-snapshots/**, /v3/api-docs/cylinder-service
+            - Path=/api/v1/cylinders/**, /api/v1/rfid/**, /api/v1/scans/**, /v3/api-docs/cylinder-service
         - id: fleet-device-service
           uri: lb://fleet-device-service
           predicates:
-            - Path=/api/v1/vehicles/**, /api/v1/devices/**, /api/v1/vehicle-positions/**, /api/v1/geofence-events/**, /api/v1/telemetry/**, /v3/api-docs/fleet-device-service
+            - Path=/api/v1/vehicles/**, /api/v1/devices/**, /api/v1/telemetry/**, /v3/api-docs/fleet-device-service
         - id: subsidy-service
           uri: lb://subsidy-service
           predicates:
-            - Path=/api/v1/declarations/**, /api/v1/reconciliations/**, /api/v1/redressements/**, /api/v1/risk-scores/**, /v3/api-docs/subsidy-service
+            - Path=/api/v1/declarations/**, /api/v1/reconciliations/**, /api/v1/redressements/**, /v3/api-docs/subsidy-service
 
 springdoc:
   api-docs:

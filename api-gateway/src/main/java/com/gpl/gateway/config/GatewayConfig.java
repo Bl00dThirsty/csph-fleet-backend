@@ -64,7 +64,7 @@ public class GatewayConfig {
                         .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                         .uri("lb://organization-service"))
                 // User endpoints
-                .route("user-service-persons", r -> r.path("/api/v1/persons/**")
+                .route("user-service-persons", r -> r.path("/api/v1/persons/**", "/api/v1/users/**")
                         .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                         .uri("lb://user-service"))
                 .route("user-service-roles", r -> r.path("/api/v1/roles/**")
@@ -128,6 +128,15 @@ public class GatewayConfig {
                         .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                         .uri("lb://tour-service"))
                 .route("tour-service-contracts", r -> r.path("/api/v1/contracts/**")
+                        .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                        .uri("lb://tour-service"))
+                // The livreur PDA's scan write path. Absent from this table entirely
+                // until now, so a reader looking for "how does a driver post a
+                // scan" found nothing, and the only route for it lived in
+                // application.yml pointing at cylinder-service — which serves
+                // /api/v1/scans and cannot accept a PDA scan. This controller was
+                // written for exactly this caller, bulk resync included.
+                .route("tour-service-scan-events", r -> r.path("/api/v1/scan-events/**")
                         .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                         .uri("lb://tour-service"))
                 .build();
