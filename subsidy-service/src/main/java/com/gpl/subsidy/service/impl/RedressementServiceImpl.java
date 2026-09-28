@@ -49,9 +49,7 @@ public class RedressementServiceImpl implements RedressementService {
                 .transactionRef(request.getTransactionRef())
                 .build();
 
-        redressement.setStatus("ISSUED");
-        redressement.setStatusDescription("Émis");
-        redressement.setStatusDate(Instant.now());
+        redressement.updateStatus("ISSUED", "Émis");
         redressement.setCreatedBy(author);
         redressement.setChangeby(author);
 

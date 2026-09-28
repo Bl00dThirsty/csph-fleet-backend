@@ -41,11 +41,11 @@ public class RfidTagServiceImpl implements RfidTagService {
         tag.setCreatedBy(createdBy != null ? createdBy : "SYSTEM");
         tag.setChangeby(createdBy != null ? createdBy : "SYSTEM");
 
-        if (request.getStatus() != null) {
-            tag.setStatus(request.getStatus());
-        }
-        if (request.getStatusDescription() != null) {
-            tag.setStatusDescription(request.getStatusDescription());
+        if (request.getStatus() != null || request.getStatusDescription() != null) {
+            tag.updateStatus(
+                    request.getStatus() != null ? request.getStatus() : tag.getStatus(),
+                    request.getStatusDescription() != null
+                            ? request.getStatusDescription() : tag.getStatusDescription());
         }
 
         RfidTag saved = rfidTagRepository.save(tag);
@@ -68,11 +68,11 @@ public class RfidTagServiceImpl implements RfidTagService {
         if (request.getCurrentSiteId() != null) tag.setCurrentSiteId(request.getCurrentSiteId());
         if (request.getCurrentClientSiteId() != null) tag.setCurrentClientSiteId(request.getCurrentClientSiteId());
 
-        if (request.getStatus() != null) {
-            tag.setStatus(request.getStatus());
-        }
-        if (request.getStatusDescription() != null) {
-            tag.setStatusDescription(request.getStatusDescription());
+        if (request.getStatus() != null || request.getStatusDescription() != null) {
+            tag.updateStatus(
+                    request.getStatus() != null ? request.getStatus() : tag.getStatus(),
+                    request.getStatusDescription() != null
+                            ? request.getStatusDescription() : tag.getStatusDescription());
         }
 
         tag.setChangeby(changedBy != null ? changedBy : "SYSTEM");

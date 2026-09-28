@@ -26,9 +26,12 @@ public interface TourService {
     TourResponseDto getById(String id);
 
     /*
-     * Retrieves all Tours with pagination.
+     * Retrieves all Tours with pagination, optionally scoped to one driver.
+     *
+     * @param driverPersonId null or blank lists every tour; a value restricts the
+     *                       page to the tours assigned to that driver.
      */
-    PageResponse<TourResponseDto> getAll(Pageable pageable);
+    PageResponse<TourResponseDto> getAll(String driverPersonId, Pageable pageable);
 
     /*
      * Updates an existing Tour by its ID.
@@ -66,39 +69,86 @@ public interface TourService {
     void deleteCheckpoint(String checkpointId);
 
     /* ── Operation Lifecycle & Dynamic Assignments (Phase 3) ─────────────── */
+    /*
+     * Every method below goes through com.gpl.common.lifecycle.Lifecycle, which owns
+     * the transition tables for both execution modes and both status domains. The
+     * service does not hold a status of its own and does not decide what is legal:
+     * an illegal move is a 422 naming the attempted transition and the legal ones.
+     *
+     * INTERNAL: DRAFT -> PLANNED -> INPROGRESS -> CHECKPOINTACTIVE -> CLOSED
+     * EXTERNAL: DRAFT -> PENDINGTRANSPORTERACK -> ACKNOWLEDGED -> INPROGRESS
+     *           -> CHECKPOINTACTIVE -> CLOSED
+     * Either mode may also reach CANCELLED before rollout begins.
+     */
 
     /*
-     * Démarrer une tournée (PLANNED -> STARTED).
+     * Planifier une tournée (DRAFT -> PLANNED). Mode INTERNAL.
+     */
+    TourResponseDto plan(String id, String plannedBy);
+
+    /*
+     * Transmettre une tournée à un transporteur (DRAFT -> PENDINGTRANSPORTERACK).
+     * Mode EXTERNAL uniquement, et exige un transporteur identifié.
+     */
+    TourResponseDto sendToTransporter(String id, String sentBy);
+
+    /*
+     * Enregistrer l'accusé de réception du transporteur
+     * (PENDINGTRANSPORTERACK -> ACKNOWLEDGED), en horodatant l'affectation.
+     */
+    TourResponseDto acknowledge(String id, String acknowledgedBy);
+
+    /*
+     * Démarrer une tournée (PLANNED ou ACKNOWLEDGED -> INPROGRESS).
      */
     TourResponseDto startTour(String id, String startedBy);
 
     /*
-     * Clôturer une tournée (STARTED -> COMPLETED).
+     * Clôturer une tournée (CHECKPOINTACTIVE -> CLOSED).
+     *
+     * <p>Exige que chaque arrêt soit COMPLETED ou SKIPPED, et que la quantité
+     * livrée soit cohérente avec la quantité chargée : c'est le chiffre sur lequel
+     * se construit la réconciliation de subvention.</p>
      */
     TourResponseDto closeTour(String id, Double loadedQuantity, Double deliveredQuantity, String closedBy);
 
     /*
-     * Annuler une tournée.
+     * Annuler une tournée (vers CANCELLED). Autorisé tant que la tournée n'est pas
+     * engagée sur la route.
      */
     TourResponseDto cancelTour(String id, String reason, String cancelledBy);
 
     /*
-     * Assigner un chauffeur à la tournée.
+     * Assigner un chauffeur à la tournée. Ne change aucun statut : nommer un
+     * chauffeur n'est pas accuser réception d'une mission.
      */
     TourResponseDto assignDriver(String id, String driverId, String driverPersonId, String assignedBy);
 
     /*
-     * Assigner un véhicule à la tournée.
+     * Assigner un véhicule à la tournée. Ne change aucun statut.
      */
     TourResponseDto assignVehicle(String id, String vehicleId, String assignedBy);
 
     /*
-     * Valider la réalisation d'un arrêt de tournée avec horodatage actualArrival.
+     * Terminer la livraison d'un arrêt (REACHED -> COMPLETED).
+     *
+     * <p>Ne touche pas actualArrival : l'heure d'arrivée est le fait enregistré par
+     * reachCheckpoint. Confondre les deux perd la preuve d'arrivée.</p>
      */
-    CheckpointResponseDto validateCheckpoint(String checkpointId, String validatedBy);
+    CheckpointResponseDto completeCheckpoint(String checkpointId, String completedBy);
 
     /*
-     * Sauter un arrêt de tournée avec justification obligatoire.
+     * Marquer un arrêt de tournée comme atteint par le livreur (PENDING -> REACHED)
+     * avec horodatage actualArrival, avant la saisie des scans et la fin de livraison.
+     *
+     * <p>Première arrivée d'une tournée : promeut la tournée INPROGRESS ->
+     * CHECKPOINTACTIVE.</p>
+     */
+    CheckpointResponseDto reachCheckpoint(String checkpointId, String reachedBy);
+
+    /*
+     * Sauter un arrêt de tournée (PENDING ou REACHED -> SKIPPED) avec
+     * justification obligatoire.
      */
     CheckpointResponseDto skipCheckpoint(String checkpointId, String reason, String skippedBy);
 }

@@ -41,6 +41,8 @@ public class NotificationService {
         notificationLog.setBody(body);
         notificationLog.setRelatedEntityType(request.getRelatedEntityType());
         notificationLog.setRelatedEntityId(request.getRelatedEntityId());
+        // NotificationLog extends BaseEntity, not AuditableEntity: it has no
+        // updateStatus(code, label) and is untouched by the setter closure.
         notificationLog.setStatus("PENDING");
 
         notificationLog = logRepository.save(notificationLog);

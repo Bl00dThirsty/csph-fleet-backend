@@ -44,9 +44,7 @@ public class DeclarationServiceImpl implements DeclarationService {
                 .submittedByPersonId(request.getSubmittedByPersonId() != null ? request.getSubmittedByPersonId() : author)
                 .build();
 
-        declaration.setStatus("DRAFT");
-        declaration.setStatusDescription("Brouillon");
-        declaration.setStatusDate(Instant.now());
+        declaration.updateStatus("DRAFT", "Brouillon");
         declaration.setCreatedBy(author);
         declaration.setChangeby(author);
 

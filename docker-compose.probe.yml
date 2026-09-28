@@ -1,0 +1,22 @@
+# Probe overlay: the k3s control plane already owns host 8080/8761, so the
+# compose probe stack publishes on alternate host ports. Container-network
+# traffic (Eureka, lb:// routing) is unaffected — only the probe's entry
+# point moves. `!override` replaces (not appends) the base port lists.
+services:
+  discovery-server:
+    ports: !override
+      - "18761:8761"
+  api-gateway:
+    ports: !override
+      - "18080:8080"
+  # The probe talks to the stack only through the gateway. Backend services
+  # keep container-network ports; their host bindings (also owned by k3s)
+  # are dropped.
+  auth-service:
+    ports: !override []
+  organization-service:
+    ports: !override []
+  user-service:
+    ports: !override []
+  tour-service:
+    ports: !override []

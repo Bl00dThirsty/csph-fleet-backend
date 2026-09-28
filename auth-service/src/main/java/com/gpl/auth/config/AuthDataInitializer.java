@@ -5,13 +5,17 @@ import com.gpl.auth.repository.AuthUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -24,12 +28,17 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@Profile({"dev", "test", "local", "default"})
+@Profile({"dev", "test", "local"})
 public class AuthDataInitializer implements CommandLineRunner {
 
     private final AuthUserRepository authUserRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ApplicationContext ctx;
 
+    /**
+     * The seeded credential. Its value is irrelevant to production precisely
+     * because the seeder refuses to run there — see the guard in {@link #run}.
+     */
     private static final String DEFAULT_PASSWORD = "Password123!";
 
     /*
@@ -38,7 +47,23 @@ public class AuthDataInitializer implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        log.info("Initializing test data for auth users...");
+        // Second line of defence, behind @Profile. A profile typo, an empty
+        // SPRING_PROFILES_ACTIVE, or a deployment that copies application.yml
+        // verbatim would otherwise re-create 13 accounts that all share one
+        // published password — one of them SUPERADMIN, which PermissionAspect
+        // additionally exempts from every permission check.
+        //
+        // The seeder is development scaffolding. It is not an account-provisioning
+        // path: real accounts come from POST /persons/with-auth.
+        String[] active = ctx.getEnvironment().getActiveProfiles();
+        Set<String> profiles = new HashSet<>(Arrays.asList(active));
+        if (!profiles.contains("dev") && !profiles.contains("test") && !profiles.contains("local")) {
+            log.warn("Refusing to seed demo accounts: active profiles {} are not dev/test/local. "
+                    + "No auth users were created.", Arrays.toString(active));
+            return;
+        }
+
+        log.info("Initializing test data for auth users (profiles: {})...", Arrays.toString(active));
 
         if (authUserRepository.count() > 0) {
             log.info("Auth users already exist, skipping initialization");

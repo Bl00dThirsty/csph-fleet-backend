@@ -46,11 +46,11 @@ public class DeviceServiceImpl implements DeviceService {
         device.setOrganizationId(request.getOrganizationId());
         device.setAssignedToPersonId(request.getAssignedToPersonId());
         device.setAssignedToVehicleId(request.getAssignedToVehicleId());
-        if (request.getStatus() != null) {
-            device.setStatus(request.getStatus());
-        }
-        if (request.getStatusDescription() != null) {
-            device.setStatusDescription(request.getStatusDescription());
+        if (request.getStatus() != null || request.getStatusDescription() != null) {
+            device.updateStatus(
+                    request.getStatus() != null ? request.getStatus() : device.getStatus(),
+                    request.getStatusDescription() != null
+                            ? request.getStatusDescription() : device.getStatusDescription());
         }
         device.setCreatedBy(createdBy != null ? createdBy : "SYSTEM");
 
@@ -101,11 +101,11 @@ public class DeviceServiceImpl implements DeviceService {
         if (request.getAssignedToVehicleId() != null) {
             device.setAssignedToVehicleId(request.getAssignedToVehicleId());
         }
-        if (request.getStatus() != null) {
-            device.setStatus(request.getStatus());
-        }
-        if (request.getStatusDescription() != null) {
-            device.setStatusDescription(request.getStatusDescription());
+        if (request.getStatus() != null || request.getStatusDescription() != null) {
+            device.updateStatus(
+                    request.getStatus() != null ? request.getStatus() : device.getStatus(),
+                    request.getStatusDescription() != null
+                            ? request.getStatusDescription() : device.getStatusDescription());
         }
         device.setChangeby(changedBy != null ? changedBy : "SYSTEM");
 

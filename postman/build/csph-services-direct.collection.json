@@ -25,7 +25,6 @@
                 "{{authService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "me"
@@ -60,7 +59,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations"
@@ -95,11 +93,9 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "persons",
-                ""
+                "persons"
               ]
             },
             "description": "Direct probe of **user-service** on its own port (8083) - the in-cluster equivalent of\n`http://csph/gpl-user-service/api/v1/persons/`.\n\nSent with **no security headers at all**, which is the point of this collection: `PermissionAspect` finds no\n`GplSecurityContext` and passes the call straight through, so a `200` here proves both that the port is open and\nthat the permission check was bypassed.\n\n- `200` - reachable, and the endpoint is genuinely open (or the check was skipped)\n- `401` - reachable, and the endpoint genuinely requires a caller (`/api/v1/me` without `X-User-PersonId`, for example)\n- `404` - reachable, but that path is not mapped in this service"
@@ -131,7 +127,6 @@
                 "{{auditService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "audit",
@@ -167,7 +162,6 @@
                 "{{notifService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "notification-templates"
@@ -202,7 +196,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours"
@@ -237,7 +230,6 @@
                 "{{cylinderService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders"
@@ -272,7 +264,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles"
@@ -307,7 +298,6 @@
                 "{{subsidyService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations"
@@ -342,7 +332,6 @@
                 "{{gateway}}"
               ],
               "path": [
-                "",
                 "actuator",
                 "health"
               ]
@@ -382,7 +371,6 @@
                 "{{authService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "auth",
@@ -432,7 +420,6 @@
                 "{{authService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "me"
@@ -472,7 +459,6 @@
                 "{{authService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "me",
@@ -513,7 +499,6 @@
                 "{{authService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "auth",
@@ -555,7 +540,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations"
@@ -596,7 +580,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations",
@@ -637,7 +620,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations"
@@ -686,7 +668,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations",
@@ -732,7 +713,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations",
@@ -769,7 +749,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "sites"
@@ -815,7 +794,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "sites"
@@ -859,7 +837,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "classifications"
@@ -900,11 +877,9 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "persons",
-                ""
+                "persons"
               ],
               "query": [
                 {
@@ -942,7 +917,6 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -979,11 +953,9 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "persons",
-                ""
+                "persons"
               ]
             },
             "description": "**user-service on :8083**, with **no security headers**.\n\n`createPerson` declares `@RequestHeader(value = \"X-User-PersonId\", required = false)` - optional, unlike\norganization-service''s writes. So the bypass applies cleanly here and the controller substitutes `\"SYSTEM\"` for the\naudit field. That asymmetry between services is exactly what the direct-port collection makes visible.\n\n`email` carries `{{uniq}}`; returns **200, not 201** (the handler returns `ApiResponse` directly).",
@@ -1024,7 +996,6 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -1069,7 +1040,6 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -1115,7 +1085,6 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -1152,7 +1121,6 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -1198,7 +1166,6 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "persons",
@@ -1235,11 +1202,9 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "roles",
-                ""
+                "roles"
               ]
             },
             "description": "**user-service on :8083**, no security headers, so `ROLE_VIEW` is bypassed.\n\nEnveloped **array**, not a `PageResponse` - despite `/persons/` two requests up being a bare page. Different\ncontroller, different convention, same service.\n\nAlso the place to get a `roleId` if `{{roleId}}` is empty: copy any `data[].id` into the environment variable."
@@ -1271,7 +1236,6 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "roles",
@@ -1308,11 +1272,9 @@
                 "{{userService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
-                "groups",
-                ""
+                "groups"
               ]
             },
             "description": "**user-service on :8083**, no security headers, so `GROUP_VIEW` is bypassed.\n\nEnveloped **array**, trailing slash required. Groups are permission bundles used for a bulk grant instead of\nper-person role assignment; `memberCount` is maintained denormalised on the row."
@@ -1350,7 +1312,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles"
@@ -1391,7 +1352,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours"
@@ -1432,7 +1392,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours"
@@ -1476,7 +1435,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -1512,7 +1470,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -1555,7 +1512,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -1592,7 +1548,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "tours",
@@ -1638,7 +1593,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "checkpoints",
@@ -1675,7 +1629,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "pickups"
@@ -1716,7 +1669,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "pickups"
@@ -1760,7 +1712,6 @@
                 "{{tourService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "pickups",
@@ -1809,7 +1760,6 @@
                 "{{cylinderService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders"
@@ -1850,7 +1800,6 @@
                 "{{cylinderService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders"
@@ -1894,7 +1843,6 @@
                 "{{cylinderService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders",
@@ -1930,7 +1878,6 @@
                 "{{cylinderService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "cylinders",
@@ -1976,7 +1923,6 @@
                 "{{cylinderService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "rfid"
@@ -2017,7 +1963,6 @@
                 "{{cylinderService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "rfid"
@@ -2061,7 +2006,6 @@
                 "{{cylinderService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "rfid",
@@ -2097,7 +2041,6 @@
                 "{{cylinderService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "scans"
@@ -2147,7 +2090,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles"
@@ -2188,7 +2130,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles"
@@ -2232,7 +2173,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "vehicles",
@@ -2268,7 +2208,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "devices"
@@ -2309,7 +2248,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "devices"
@@ -2353,7 +2291,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "devices",
@@ -2389,7 +2326,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "devices",
@@ -2435,7 +2371,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "telemetry"
@@ -2479,7 +2414,6 @@
                 "{{fleetService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "telemetry",
@@ -2523,7 +2457,6 @@
                 "{{subsidyService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations"
@@ -2564,7 +2497,6 @@
                 "{{subsidyService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations"
@@ -2608,7 +2540,6 @@
                 "{{subsidyService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations",
@@ -2644,7 +2575,6 @@
                 "{{subsidyService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations",
@@ -2681,7 +2611,6 @@
                 "{{subsidyService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "declarations",
@@ -2728,7 +2657,6 @@
                 "{{subsidyService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "reconciliations"
@@ -2769,7 +2697,6 @@
                 "{{subsidyService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "reconciliations"
@@ -2813,7 +2740,6 @@
                 "{{subsidyService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "redressements"
@@ -2854,7 +2780,6 @@
                 "{{subsidyService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "redressements"
@@ -2904,7 +2829,6 @@
                 "{{auditService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "audit",
@@ -2958,7 +2882,6 @@
                 "{{auditService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "audit",
@@ -3004,7 +2927,6 @@
                 "{{auditService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "audit",
@@ -3042,7 +2964,6 @@
                 "{{auditService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "audit",
@@ -3093,7 +3014,6 @@
                 "{{notifService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "notification-templates"
@@ -3137,7 +3057,6 @@
                 "{{notifService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "notification-templates"
@@ -3172,7 +3091,6 @@
                 "{{notifService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "notification-templates",
@@ -3208,7 +3126,6 @@
                 "{{notifService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "notifications",
@@ -3259,7 +3176,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations"
@@ -3305,7 +3221,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations"
@@ -3346,7 +3261,6 @@
                 "{{orgService}}"
               ],
               "path": [
-                "",
                 "api",
                 "v1",
                 "organizations"

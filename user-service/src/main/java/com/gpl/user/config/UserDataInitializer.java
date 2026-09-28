@@ -25,7 +25,7 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@Profile({"dev", "test", "local", "default"})
+@Profile({"dev", "test", "local"})
 @Order(1)
 public class UserDataInitializer implements CommandLineRunner {
 
@@ -150,9 +150,7 @@ public class UserDataInitializer implements CommandLineRunner {
         person.setDeviceClass(deviceClass);
         person.setDeviceClassDescription(getDeviceClassDescription(deviceClass));
         
-        person.setStatus(EntityStatus.ACTIVE.getCode());
-        person.setStatusDescription(EntityStatus.ACTIVE.getDescription());
-        person.setStatusDate(Instant.now());
+        person.updateStatus(EntityStatus.ACTIVE.getCode(), EntityStatus.ACTIVE.getDescription());
         person.setCreatedBy("SYSTEM_INIT");
         person.setActive(true);
         person.setLocked(false);

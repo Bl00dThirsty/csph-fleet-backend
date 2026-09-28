@@ -22,4 +22,4 @@ scripts:
       const h = pm.response.json();
       pm.test('health status UP', function () { pm.expect(h.status).to.eql('UP'); });
     language: text/javascript
-order: 2000
+order: 1500

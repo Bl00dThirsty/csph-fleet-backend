@@ -85,6 +85,16 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                             .header("X-User-OrgId", orgId != null ? orgId : "")
                             .header("X-User-Roles", rolesStr)
                             .header("X-User-Permissions", permissionsStr)
+                            // Strip the bearer token before forwarding. Downstream
+                            // services authenticate exclusively off the X-User-*
+                            // headers above (see GplSecurityContextFilter) and never
+                            // read Authorization — but the JWT carries the full
+                            // permission union (SUPERADMIN: ~190 codes, ~5KB) and
+                            // re-forwarding it alongside X-User-Permissions pushed
+                            // fat roles over Tomcat's 8KB header cap (HTTP 400 on
+                            // every guarded call). The gateway has already
+                            // validated the token here; nothing downstream needs it.
+                            .headers(headers -> headers.remove(HttpHeaders.AUTHORIZATION))
                             .build();
 
                     exchange = exchange.mutate().request(mutatedRequest).build();

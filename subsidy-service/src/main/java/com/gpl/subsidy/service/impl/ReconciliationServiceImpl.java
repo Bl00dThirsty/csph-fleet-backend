@@ -60,9 +60,7 @@ public class ReconciliationServiceImpl implements ReconciliationService {
                 .notes(request.getNotes())
                 .build();
 
-        reconciliation.setStatus("PENDING");
-        reconciliation.setStatusDescription("En attente");
-        reconciliation.setStatusDate(Instant.now());
+        reconciliation.updateStatus("PENDING", "En attente");
         reconciliation.setCreatedBy(author);
         reconciliation.setChangeby(author);
 

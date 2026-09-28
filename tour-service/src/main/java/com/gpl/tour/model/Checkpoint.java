@@ -3,6 +3,7 @@ package com.gpl.tour.model;
 import com.gpl.common.model.AuditableEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 
@@ -65,4 +66,17 @@ public class Checkpoint extends AuditableEntity {
     /* Motif de saut de cet arrêt (obligatoire si status=SKIPPED) */
     @Column(name = "skip_reason")
     private String skipReason;
+
+    /* Date/heure de dernière mise à jour (aligné schéma v6_2, NOT NULL DEFAULT now()) */
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    /* Date/heure de suppression douce (soft delete) ; null = checkpoint actif */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    /* PersonId du dernier modificateur (aligné schéma v6_2) */
+    @Column(name = "updated_by", length = 36)
+    private String updatedBy;
 }
