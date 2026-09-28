@@ -13,8 +13,8 @@ import java.util.UUID;
  * DTO d'entrée pour l'enregistrement d'un événement de scan RFID.
  *
  * <p>Le point géographique est envoyé sous forme de deux doubles ({@code geoLng},
- * {@code geoLat}) pour rester compatible JSON — la conversion en
- * {@code JTS Point} (PostGIS) est effectuée côté service.</p>
+ * {@code geoLat}) pour rester compatible JSON — ils sont persistés tels quels
+ * (colonnes {@code geo_lng} / {@code geo_lat}).</p>
  *
  * <p>Règle métier : exactement un de {@code direction} ou {@code meterReading}
  * doit être renseigné. Un scan avec {@code direction} enregistre une entrée/sortie

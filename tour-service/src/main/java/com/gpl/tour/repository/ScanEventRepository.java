@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -27,4 +28,13 @@ public interface ScanEventRepository extends JpaRepository<ScanEvent, ScanEventI
      * @return liste ordonnée des scans associés
      */
     List<ScanEvent> findByCheckpointIdOrderByTimestampAsc(UUID checkpointId);
+
+    /**
+     * Idempotency lookup for PDA bulk re-uploads. The PDA mints one stable
+     * {@code pdaSyncId} per local read BEFORE uploading and keeps re-sending
+     * the same row while the server has not confirmed it (offline retries,
+     * timeout ambiguities). A hit here means the read was already stored —
+     * the caller must return the existing row instead of inserting a twin.
+     */
+    Optional<ScanEvent> findByPdaSyncId(String pdaSyncId);
 }

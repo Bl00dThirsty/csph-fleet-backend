@@ -70,17 +70,34 @@ function splitUrl(rawUrl) {
   if (placeholderOrigin) {
     return {
       host: [placeholderOrigin[1]],
-      path: (placeholderOrigin[2] || '/').split('/'),
+      // Drop the empty leading segment: '/api/...'.split('/') starts with ''
+      // and Postman re-joins host + '/' + path, which produced '//api/...'
+      // (gateway 404 on every request) for all 226 built requests.
+      // A trailing slash is MEANINGFUL (Spring's @GetMapping("/") needs it:
+      // /persons/ 200s while /persons 404s), so it is kept as one trailing
+      // empty segment.
+      path: toPath(placeholderOrigin[2] || '/'),
       query,
     }
   }
 
   const absolute = base.match(/^(https?:\/\/[^/]+)(\/.*)?$/)
   if (absolute) {
-    return { host: [absolute[1]], path: (absolute[2] || '/').split('/'), query }
+    return { host: [absolute[1]], path: toPath(absolute[2] || '/'), query }
   }
 
-  return { host: [], path: base.split('/'), query }
+  return { host: [], path: toPath(base), query }
+}
+
+/**
+ * Split a URL path into Postman segments. Empty segments are dropped except
+ * ONE trailing empty string, which preserves a significant trailing slash.
+ */
+function toPath(s) {
+  const segs = String(s).split('/').filter(Boolean);
+  if (s.length > 1 && s.endsWith('/')) segs.push('');
+  return segs;
+}
 }
 
 function toEvents(scripts) {

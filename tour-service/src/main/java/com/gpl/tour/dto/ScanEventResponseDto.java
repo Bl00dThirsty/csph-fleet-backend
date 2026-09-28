@@ -13,7 +13,7 @@ import java.util.UUID;
  * DTO de réponse pour un événement de scan RFID.
  *
  * <p>Expose le point géographique sous forme de deux doubles ({@code geoLng},
- * {@code geoLat}) — le {@code JTS Point} interne n'est jamais sérialisé.</p>
+ * {@code geoLat}) lus directement des colonnes persistées.</p>
  *
  * @author  GPL-RFID Team | Digit-Tech-Innov Solutions and Services
  * @version 1.0

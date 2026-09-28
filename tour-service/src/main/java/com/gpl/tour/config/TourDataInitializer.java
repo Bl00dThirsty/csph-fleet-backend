@@ -40,7 +40,7 @@ import java.time.temporal.ChronoUnit;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@Profile({"dev", "test", "local", "default"})
+@Profile({"dev", "test", "local"})
 @Order(1)
 public class TourDataInitializer implements CommandLineRunner {
 

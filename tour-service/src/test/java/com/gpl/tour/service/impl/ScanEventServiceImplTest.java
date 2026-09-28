@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -79,8 +80,10 @@ class ScanEventServiceImplTest {
                 "persisted direction must be IN");
         assertNotNull(persisted.getId(),
                 "persisted entity must have a generated UUID");
-        assertNotNull(persisted.getGeoPoint(),
-                "persisted entity must have a JTS Point built from geoLng/geoLat");
+        assertEquals(11.5, persisted.getGeoLng(),
+                "persisted geoLng must match the DTO");
+        assertEquals(3.8, persisted.getGeoLat(),
+                "persisted geoLat must match the DTO");
 
         assertEquals(checkpointId, response.getCheckpointId(),
                 "response checkpointId must match the DTO");
@@ -158,5 +161,36 @@ class ScanEventServiceImplTest {
         assertEquals(c1, responses.get(0).getCheckpointId());
         assertEquals(c2, responses.get(1).getCheckpointId());
         assertEquals(c3, responses.get(2).getCheckpointId());
+    }
+
+    @Test
+    @DisplayName("create() with an already-stored pdaSyncId returns the existing row without inserting")
+    void create_samePdaSyncIdTwice_doesNotDuplicate() {
+        // Given — a re-uploaded read (same PDA nonce) already in store
+        UUID checkpointId = UUID.randomUUID();
+        UUID livreurId = UUID.randomUUID();
+        ScanEvent stored = ScanEvent.builder()
+                .id(UUID.randomUUID())
+                .timestamp(java.time.Instant.now())
+                .checkpointId(checkpointId)
+                .livreurUserId(livreurId)
+                .direction(ScanDirection.OUT)
+                .geoLng(11.5).geoLat(3.8)
+                .pdaSyncId("PDA-RETRY-1")
+                .build();
+        when(scanEventRepository.findByPdaSyncId("PDA-RETRY-1"))
+                .thenReturn(java.util.Optional.of(stored));
+
+        CreateScanEventDto retry = CreateScanEventDto.builder()
+                .checkpointId(checkpointId).livreurUserId(livreurId).direction("OUT")
+                .geoLng(11.5).geoLat(3.8).pdaSyncId("PDA-RETRY-1").build();
+
+        // When — the PDA retries the unconfirmed upload
+        ScanEventResponseDto response = scanEventService.create(retry, livreurId.toString());
+
+        // Then — no second row, the stored one is echoed back
+        verify(scanEventRepository, never()).save(any(ScanEvent.class));
+        assertEquals(stored.getId(), response.getId(),
+                "retry must return the already-stored event, not a twin");
     }
 }

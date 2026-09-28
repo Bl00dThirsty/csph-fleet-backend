@@ -20,7 +20,7 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@Profile({"dev", "test", "local", "default"})
+@Profile({"dev", "test", "local"})
 public class DataInitializer implements CommandLineRunner {
 
     private final OrganizationRepository organizationRepository;

@@ -9,10 +9,6 @@ import com.gpl.tour.repository.ScanEventRepository;
 import com.gpl.tour.service.ScanEventService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.Point;
-import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +20,7 @@ import java.util.UUID;
 /**
  * Implémentation de {@link ScanEventService}.
  *
- * <p>Persistance d'événements de scan RFID sur les arrêts de tournée.
- * Les coordonnées GPS reçues en doubles ({@code geoLng} / {@code geoLat}) sont
- * converties en {@link Point} JTS (SRID 4326) pour Hibernate Spatial / PostGIS.</p>
+ * <p>Persistance d'événements de scan RFID sur les arrêts de tournée.</p>
  *
  * <p>Règles métier appliquées :</p>
  * <ul>
@@ -47,18 +41,26 @@ public class ScanEventServiceImpl implements ScanEventService {
 
     private final ScanEventRepository scanEventRepository;
 
-    /**
-     * SRID 4326 for WGS 84 GPS coordinates — same PostGIS SRID as {@code geo_point} column.
-     * Mirrors the pattern used by {@code VehicleTelemetryServiceImpl} in fleet-device-service.
-     */
-    private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
-
     @Override
     public ScanEventResponseDto create(CreateScanEventDto dto, String createdBy) {
         log.info("Creating ScanEvent — checkpoint={}, livreur={}, direction={}, meterReading={}",
                 dto.getCheckpointId(), dto.getLivreurUserId(), dto.getDirection(), dto.getMeterReading());
 
         validatePayload(dto);
+
+        // Idempotency: a PDA re-sends the same read (same pdaSyncId) while the
+        // server has not confirmed it. Returning the stored row keeps one
+        // physical tag at exactly one event no matter how often it is
+        // re-uploaded. The UNIQUE constraint on pda_sync_id is the backstop
+        // against raced duplicates.
+        if (dto.getPdaSyncId() != null && !dto.getPdaSyncId().isBlank()) {
+            var existing = scanEventRepository.findByPdaSyncId(dto.getPdaSyncId());
+            if (existing.isPresent()) {
+                log.info("ScanEvent already stored for pdaSyncId={} — returning existing id={}",
+                        dto.getPdaSyncId(), existing.get().getId());
+                return toResponseDto(existing.get());
+            }
+        }
 
         ScanEvent entity = ScanEvent.builder()
                 .id(UUID.randomUUID())
@@ -67,7 +69,8 @@ public class ScanEventServiceImpl implements ScanEventService {
                 .livreurUserId(dto.getLivreurUserId())
                 .rfidTagId(dto.getRfidTagId())
                 .direction(parseDirection(dto.getDirection()))
-                .geoPoint(buildPoint(dto.getGeoLng(), dto.getGeoLat()))
+                .geoLng(requireCoordinate(dto.getGeoLng(), "geoLng"))
+                .geoLat(requireCoordinate(dto.getGeoLat(), "geoLat"))
                 .meterReading(dto.getMeterReading())
                 .photoUrl(dto.getPhotoUrl())
                 .pdaSyncId(dto.getPdaSyncId())
@@ -122,11 +125,11 @@ public class ScanEventServiceImpl implements ScanEventService {
 
     /* ── Mapping helpers ────────────────────────────────────────────────── */
 
-    private Point buildPoint(Double lng, Double lat) {
-        if (lng == null || lat == null) {
+    private Double requireCoordinate(Double value, String name) {
+        if (value == null) {
             throw new BusinessException("Les coordonnées GPS (geoLng, geoLat) sont obligatoires pour un scan.");
         }
-        return geometryFactory.createPoint(new Coordinate(lng, lat));
+        return value;
     }
 
     private ScanDirection parseDirection(String raw) {
@@ -162,8 +165,8 @@ public class ScanEventServiceImpl implements ScanEventService {
                 .livreurUserId(e.getLivreurUserId())
                 .rfidTagId(e.getRfidTagId())
                 .direction(e.getDirection() != null ? e.getDirection().name() : null)
-                .geoLng(e.getGeoPoint() != null ? e.getGeoPoint().getX() : null)
-                .geoLat(e.getGeoPoint() != null ? e.getGeoPoint().getY() : null)
+                .geoLng(e.getGeoLng())
+                .geoLat(e.getGeoLat())
                 .meterReading(e.getMeterReading())
                 .photoUrl(e.getPhotoUrl())
                 .pdaSyncId(e.getPdaSyncId())

@@ -14,7 +14,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.locationtech.jts.geom.Point;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -27,10 +26,13 @@ import java.util.UUID;
  * composite {@code (id, timestamp)} and is exposed via {@link ScanEventId} as
  * an {@code @IdClass}.</p>
  *
- * <p>The {@code geo_point} column is a PostGIS {@code GEOMETRY(Point, 4326)} —
- * persisted as a JTS {@link Point} via Hibernate Spatial. Application code
- * receives the point as separate {@code lng} / {@code lat} doubles; only the
- * service layer translates them into a JTS {@code Point}.</p>
+ * <p>GPS is stored as plain {@code geo_lng} / {@code geo_lat} doubles. A PostGIS
+ * {@code GEOMETRY(Point,4326)} column was tried before, but the dev/CI Postgres
+ * fleet is plain postgres (no PostGIS, no hibernate-spatial) so Hibernate could
+ * never create the table and every scan upload 500'd with "relation does not
+ * exist". Nothing queries this column spatially — reconciliation reads raw
+ * coordinates — so doubles are the honest mapping until PostGIS is provisioned
+ * everywhere (then reintroduce a geometry column alongside, not instead).</p>
  *
  * @author  GPL-RFID Team | Digit-Tech-Innov Solutions and Services
  * @version 1.0
@@ -68,14 +70,18 @@ public class ScanEvent {
     @Column(name = "rfid_tag_id")
     private UUID rfidTagId;
 
-    /** Entry / exit direction of the scan. Persisted as Postgres enum {@code scan_direction}. */
+    /** Entry / exit direction of the scan: {@code IN} or {@code OUT} (validated in service). */
     @Enumerated(EnumType.STRING)
-    @Column(name = "direction", nullable = false, columnDefinition = "scan_direction")
+    @Column(name = "direction", nullable = false, length = 10)
     private ScanDirection direction;
 
-    /** PostGIS POINT in WGS 84 (SRID 4326). Required. */
-    @Column(name = "geo_point", nullable = false, columnDefinition = "geometry(Point,4326)")
-    private Point geoPoint;
+    /** GPS longitude (WGS 84) captured by the PDA at read time. Required. */
+    @Column(name = "geo_lng", nullable = false)
+    private Double geoLng;
+
+    /** GPS latitude (WGS 84) captured by the PDA at read time. Required. */
+    @Column(name = "geo_lat", nullable = false)
+    private Double geoLat;
 
     /** Volumetric meter reading for VRAC (bulk) transports. Null when {@code direction} is set. */
     @Column(name = "meter_reading")
@@ -86,7 +92,7 @@ public class ScanEvent {
     private String photoUrl;
 
     /** Offline-sync correlation id emitted by the PDA (for de-dup on bulk upload). */
-    @Column(name = "pda_sync_id", length = 100)
+    @Column(name = "pda_sync_id", length = 100, unique = true)
     private String pdaSyncId;
 
     /** Conflict status: {@code PENDING}, {@code RESOLVED}, etc. Populated by reconciliation jobs. */

@@ -18,24 +18,36 @@ public class GatewayConfig {
     @Bean
     public RouteLocator routes(RouteLocatorBuilder builder) {
         return builder.routes()
-                // Swagger / OpenAPI routes (no auth required)
+                // Swagger / OpenAPI routes (no auth required). Each service serves
+                // its spec at its own /v3/api-docs, so strip the /<service>
+                // suffix before forwarding — without this every aggregated
+                // docs URL 404s downstream.
                 .route("auth-service-swagger", r -> r.path("/v3/api-docs/auth-service/**")
+                        .filters(f -> f.rewritePath("/v3/api-docs/(?<service>.*)", "/v3/api-docs"))
                         .uri("lb://auth-service"))
                 .route("organization-service-swagger", r -> r.path("/v3/api-docs/organization-service/**")
+                        .filters(f -> f.rewritePath("/v3/api-docs/(?<service>.*)", "/v3/api-docs"))
                         .uri("lb://organization-service"))
                 .route("user-service-swagger", r -> r.path("/v3/api-docs/user-service/**")
+                        .filters(f -> f.rewritePath("/v3/api-docs/(?<service>.*)", "/v3/api-docs"))
                         .uri("lb://user-service"))
                 .route("audit-service-swagger", r -> r.path("/v3/api-docs/audit-service/**")
+                        .filters(f -> f.rewritePath("/v3/api-docs/(?<service>.*)", "/v3/api-docs"))
                         .uri("lb://audit-service"))
                 .route("notification-service-swagger", r -> r.path("/v3/api-docs/notification-service/**")
+                        .filters(f -> f.rewritePath("/v3/api-docs/(?<service>.*)", "/v3/api-docs"))
                         .uri("lb://notification-service"))
                 .route("cylinder-service-swagger", r -> r.path("/v3/api-docs/cylinder-service/**")
+                        .filters(f -> f.rewritePath("/v3/api-docs/(?<service>.*)", "/v3/api-docs"))
                         .uri("lb://cylinder-service"))
                 .route("fleet-device-service-swagger", r -> r.path("/v3/api-docs/fleet-device-service/**")
+                        .filters(f -> f.rewritePath("/v3/api-docs/(?<service>.*)", "/v3/api-docs"))
                         .uri("lb://fleet-device-service"))
                 .route("tour-service-swagger", r -> r.path("/v3/api-docs/tour-service/**")
+                        .filters(f -> f.rewritePath("/v3/api-docs/(?<service>.*)", "/v3/api-docs"))
                         .uri("lb://tour-service"))
                 .route("subsidy-service-swagger", r -> r.path("/v3/api-docs/subsidy-service/**")
+                        .filters(f -> f.rewritePath("/v3/api-docs/(?<service>.*)", "/v3/api-docs"))
                         .uri("lb://subsidy-service"))
                 .route("swagger-ui", r -> r.path("/swagger-ui/**", "/swagger-ui.html", "/webjars/**")
                         .uri("lb://auth-service"))

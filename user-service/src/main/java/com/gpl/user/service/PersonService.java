@@ -223,6 +223,15 @@ public class PersonService {
         if (request.getCity() != null) person.setCity(request.getCity());
         if (request.getAvatarUrl() != null) person.setAvatarUrl(request.getAvatarUrl());
         if (request.getSupervisorId() != null) person.setSupervisorId(request.getSupervisorId());
+        // Staff transfer — re-home the person to their real org/site.
+        if (request.getOrganizationId() != null) person.setOrganizationId(request.getOrganizationId());
+        if (request.getOrgId() != null) {
+            person.setOrgId(request.getOrgId());
+        } else if (request.getOrganizationId() != null) {
+            person.setOrgId(request.getOrganizationId());
+        }
+        if (request.getPrimarySiteId() != null) person.setPrimarySiteId(request.getPrimarySiteId());
+        if (request.getSiteId() != null) person.setSiteId(request.getSiteId());
         if (request.getDeviceClass() != null) person.setDeviceClass(request.getDeviceClass());
         if (request.getDeviceClassDescription() != null) person.setDeviceClassDescription(request.getDeviceClassDescription());
         if (request.getWfMailElection() != null) person.setWfMailElection(request.getWfMailElection());
