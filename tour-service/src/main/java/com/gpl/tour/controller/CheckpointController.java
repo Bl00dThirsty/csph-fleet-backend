@@ -103,6 +103,15 @@ public class CheckpointController {
         return ResponseEntity.ok(ApiResponse.ok(tourService.validateCheckpoint(id, username), "Arrêt de tournée validé avec succès"));
     }
 
+    @RequiresPermission("CHECKPOINT_REACH")
+    @PostMapping("/api/v1/checkpoints/{id}/reach")
+    public ResponseEntity<ApiResponse<CheckpointResponseDto>> reachCheckpoint(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Username", required = false) String username) {
+        log.info("Requête REST pour marquer l'arrêt ID: {} comme atteint", id);
+        return ResponseEntity.ok(ApiResponse.ok(tourService.reachCheckpoint(id, username), "Arrêt marqué comme atteint"));
+    }
+
     @RequiresPermission("CHECKPOINT_SKIP")
     @PostMapping("/api/v1/checkpoints/{id}/skip")
     public ResponseEntity<ApiResponse<CheckpointResponseDto>> skipCheckpoint(

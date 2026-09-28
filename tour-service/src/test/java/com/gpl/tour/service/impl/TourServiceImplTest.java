@@ -17,6 +17,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -78,5 +79,35 @@ class TourServiceImplTest {
 
         assertThrows(ResourceNotFoundException.class,
                 () -> tourService.validateCheckpoint(missingId, "alice"));
+    }
+
+    @Test
+    @DisplayName("sets status REACHED and stamps actualArrival when the livreur reaches the checkpoint")
+    void reachCheckpoint_setsReachedAndActualArrival() {
+        // Given — a PENDING checkpoint loaded from the repository with no actualArrival yet
+        UUID id = UUID.randomUUID();
+        Checkpoint loaded = new Checkpoint();
+        loaded.setId(id.toString());
+        loaded.setStatus("PENDING");
+
+        when(checkpointRepository.findById(id.toString()))
+                .thenReturn(Optional.of(loaded));
+        // Echo whatever was passed to save() so we can assert on the mutated entity
+        when(checkpointRepository.save(any(Checkpoint.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When — the livreur reaches the checkpoint
+        tourService.reachCheckpoint(id.toString(), "alice");
+
+        // Then — the persisted status must be REACHED (a valid checkpoint_status enum value
+        // between PENDING and COMPLETED) and actualArrival must be stamped with the arrival time.
+        ArgumentCaptor<Checkpoint> captor = ArgumentCaptor.forClass(Checkpoint.class);
+        verify(checkpointRepository).save(captor.capture());
+        Checkpoint saved = captor.getValue();
+
+        assertEquals("REACHED", saved.getStatus(),
+                "reachCheckpoint must persist REACHED (a value of the checkpoint_status enum)");
+        assertNotNull(saved.getActualArrival(),
+                "reachCheckpoint must stamp actualArrival so the downstream scan pipeline knows when the livreur arrived");
     }
 }

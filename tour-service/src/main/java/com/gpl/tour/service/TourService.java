@@ -98,6 +98,12 @@ public interface TourService {
     CheckpointResponseDto validateCheckpoint(String checkpointId, String validatedBy);
 
     /*
+     * Marquer un arrêt de tournée comme atteint par le livreur (PENDING -> REACHED)
+     * avec horodatage actualArrival, avant la saisie des scans et la validation finale.
+     */
+    CheckpointResponseDto reachCheckpoint(String checkpointId, String reachedBy);
+
+    /*
      * Sauter un arrêt de tournée avec justification obligatoire.
      */
     CheckpointResponseDto skipCheckpoint(String checkpointId, String reason, String skippedBy);

@@ -378,6 +378,22 @@ public class TourServiceImpl implements TourService {
     }
 
     @Override
+    public CheckpointResponseDto reachCheckpoint(String checkpointId, String reachedBy) {
+        log.info("Reaching Checkpoint ID: {} by user: {}", checkpointId, reachedBy);
+        Checkpoint checkpoint = checkpointRepository.findById(checkpointId)
+                .orElseThrow(() -> new ResourceNotFoundException("Checkpoint", "id", checkpointId));
+
+        checkpoint.setStatus("REACHED");
+        checkpoint.setStatusDescription("Arrêt atteint par le livreur");
+        checkpoint.setStatusDate(java.time.Instant.now());
+        checkpoint.setActualArrival(java.time.Instant.now());
+        checkpoint.setChangeby(reachedBy != null ? reachedBy : "SYSTEM");
+
+        Checkpoint saved = checkpointRepository.save(checkpoint);
+        return mapCheckpointToDto(saved);
+    }
+
+    @Override
     public CheckpointResponseDto skipCheckpoint(String checkpointId, String reason, String skippedBy) {
         log.info("Skipping Checkpoint ID: {} with reason: {}", checkpointId, reason);
         if (reason == null || reason.isBlank()) {
