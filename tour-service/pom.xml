@@ -44,6 +44,18 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
         </dependency>
+
+        <!--
+          Required by JUnit 5 + Mockito unit tests under src/test (e.g. TourServiceImplTest).
+          Mirrors the sibling common-lib module which already uses this starter.
+          No new third-party libraries are added; this is the standard Spring Boot
+          testing aggregator (junit-jupiter, mockito-core, mockito-junit-jupiter, …).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

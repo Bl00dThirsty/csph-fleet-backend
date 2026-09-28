@@ -367,7 +367,7 @@ public class TourServiceImpl implements TourService {
         Checkpoint checkpoint = checkpointRepository.findById(checkpointId)
                 .orElseThrow(() -> new ResourceNotFoundException("Checkpoint", "id", checkpointId));
 
-        checkpoint.setStatus("VALIDATED");
+        checkpoint.setStatus("COMPLETED");
         checkpoint.setStatusDescription("Arrêt validé et confirmé");
         checkpoint.setStatusDate(java.time.Instant.now());
         checkpoint.setActualArrival(java.time.Instant.now());
