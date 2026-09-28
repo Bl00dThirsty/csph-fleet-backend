@@ -38,11 +38,23 @@
             <artifactId>common-lib</artifactId>
             <version>${project.version}</version>
         </dependency>
-    
+
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
+        </dependency>
+
+        <!--
+          JTS topology suite — required for the {@code geo_point} JTS Point
+          field on the scan_events hypertable. Already pulled in transitively
+          by hibernate-spatial in fleet-device-service but not by tour-service,
+          so we declare it directly here.
+        -->
+        <dependency>
+            <groupId>org.locationtech.jts</groupId>
+            <artifactId>jts-core</artifactId>
+            <version>1.19.0</version>
         </dependency>
 
         <!--
