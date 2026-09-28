@@ -195,7 +195,8 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "CHECKPOINT_CREATE|Ajouter un checkpoint",
             "CHECKPOINT_UPDATE|Modifier un checkpoint",
             "CHECKPOINT_DELETE|Supprimer un checkpoint",
-            "CHECKPOINT_VALIDATE|Valider un checkpoint (arrivée confirmée)",
+            "CHECKPOINT_REACH|Marquer un arrêt comme atteint (arrivée capturée)",
+            "CHECKPOINT_VALIDATE|Terminer la livraison d'un arrêt",
             "CHECKPOINT_SKIP|Sauter un checkpoint (avec raison)",
             "PICKUP_VIEW|Voir les demandes d'enlèvement",
             "PICKUP_CREATE|Créer une demande d'enlèvement",
@@ -422,21 +423,38 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         // carry these grants because PersonService may use either code when
         // a /users/with-auth request specifies `roleName: LIVREUR` (which maps
         // to a LIVREUR role row in user_role_assignments).
+        // DRIVER and LIVREUR receive identical grants because the same PDA serves
+        // both: grantPermissionsToRole creates LIVREUR on the fly when it is
+        // referenced here (it is absent from initRoles()), and PersonService may
+        // resolve either code from a /users/with-auth request.
+        //
+        // CHECKPOINT_REACH is mandatory here, not optional: POST
+        // /api/v1/checkpoints/{id}/reach requires it, and it used to be missing
+        // from the catalog entirely — so the endpoint returned 403 for every role
+        // except SUPERADMIN, which carries a blanket bypass in PermissionAspect.
+        // The arrival fact was therefore uncapturable by any real livreur.
         grantPermissionsToRole("DRIVER",
-            "TOUR_VIEW", "TOUR_VIEW_OWN_ORG",
-            "TOUR_START", "TOUR_CLOSE",
-            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
+            "TOUR_VIEW", "TOUR_VIEW_OWN_ORG", "TOUR_START", "TOUR_CLOSE",
+            "TOUR_UPDATE", "TOUR_ASSIGN_DRIVER",
+            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE",
+            "CHECKPOINT_REACH", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
             "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
-            "RFID_VIEW", "RFID_CREATE",
+            "RFID_VIEW", "RFID_CREATE", "RFID_UPDATE", "RFID_ASSIGN", "RFID_VIEW_ALL",
             "PERSON_VIEW",
             "SITE_VIEW", "SITE_VIEW_OWN",
             "VEHICLE_VIEW", "VEHICLE_VIEW_OWN_ORG",
-            "DASHBOARD_VIEW_ANALYTICS", "MONITORING_VIEW", "REPORT_GENERATE"
+            "DEVICE_VIEW", "DEVICE_VIEW_STATUS", "DEVICE_VIEW_POSITION",
+            "fleet.devices.read", "TELEMETRY_VIEW",
+            "CYLINDER_VIEW", "CYLINDER_VIEW_OWN_ORG",
+            "PICKUP_VIEW", "PICKUP_VIEW_OWN_ORG",
+            "DASHBOARD_VIEW", "DASHBOARD_VIEW_ANALYTICS", "MONITORING_VIEW",
+            "AUDIT_VIEW_MODIFICATIONS", "NOTIFICATION_VIEW_LOG", "REPORT_GENERATE"
         );
         grantPermissionsToRole("LIVREUR",
             "TOUR_VIEW", "TOUR_VIEW_OWN_ORG",
             "TOUR_START", "TOUR_CLOSE",
-            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
+            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE",
+            "CHECKPOINT_REACH", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
             "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
             "RFID_VIEW", "RFID_CREATE",
             "PERSON_VIEW",
@@ -451,7 +469,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "TOUR_CREATE", "TOUR_UPDATE", "TOUR_DELETE",
             "TOUR_START", "TOUR_CLOSE", "TOUR_CANCEL", "TOUR_ACK",
             "TOUR_ASSIGN_DRIVER", "TOUR_ASSIGN_VEHICLE",
-            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
+            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_REACH", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
             "VEHICLE_VIEW", "VEHICLE_VIEW_ALL", "VEHICLE_CREATE", "VEHICLE_UPDATE", "VEHICLE_DELETE",
             "VEHICLE_ASSIGN_DRIVER", "VEHICLE_UNASSIGN_DRIVER", "VEHICLE_VIEW_OWN_ORG",
             "fleet.vehicles.read", "fleet.vehicles.create", "fleet.vehicles.write", "fleet.vehicles.manage",
@@ -460,7 +478,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "SITE_VIEW", "SITE_VIEW_OWN", "SITE_CREATE", "SITE_UPDATE", "SITE_VIEW_ALL",
             "TOUR_VIEW", "TOUR_VIEW_ALL", "TOUR_VIEW_OWN_ORG", "TOUR_CREATE", "TOUR_UPDATE", "TOUR_DELETE",
             "TOUR_ASSIGN_DRIVER", "TOUR_ASSIGN_VEHICLE",
-            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE",
+            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_REACH", "CHECKPOINT_VALIDATE",
             "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT", "SCAN_VIEW_ALL",
             "PICKUP_VIEW", "PICKUP_CREATE", "PICKUP_UPDATE", "PICKUP_APPROVE", "PICKUP_REJECT", "PICKUP_VIEW_ALL", "PICKUP_VIEW_OWN_ORG",
             "CONTRACT_VIEW",
@@ -483,7 +501,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "TOUR_ACK",
             "TOUR_ASSIGN_DRIVER", "TOUR_ASSIGN_VEHICLE",
             "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_DELETE",
-            "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
+            "CHECKPOINT_REACH", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
             "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_VIEW_ALL", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
             "PICKUP_VIEW", "PICKUP_VIEW_OWN_ORG",
             "CONTRACT_VIEW",
@@ -494,19 +512,6 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "DECLARATION_VIEW", "SUBSIDY_DASHBOARD",
             "REPORT_GENERATE", "REPORT_EXPORT", "DASHBOARD_VIEW", "DASHBOARD_VIEW_ANALYTICS",
             "AUDIT_VIEW_MODIFICATIONS"
-        );
-
-        // DRIVER
-        grantPermissionsToRole("DRIVER",
-            "TOUR_VIEW", "TOUR_VIEW_OWN_ORG", "TOUR_UPDATE", "TOUR_ASSIGN_DRIVER",
-            "CHECKPOINT_VIEW", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
-            "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
-            "RFID_VIEW", "RFID_UPDATE", "RFID_ASSIGN", "RFID_VIEW_ALL",
-            "DEVICE_VIEW", "DEVICE_VIEW_STATUS", "DEVICE_VIEW_POSITION",
-            "fleet.devices.read", "TELEMETRY_VIEW",
-            "PICKUP_VIEW", "PICKUP_VIEW_OWN_ORG",
-            "CYLINDER_VIEW", "CYLINDER_VIEW_OWN_ORG",
-            "DASHBOARD_VIEW", "AUDIT_VIEW_MODIFICATIONS", "NOTIFICATION_VIEW_LOG"
         );
 
         // ORG_ADMIN (rôle par défaut du plan)

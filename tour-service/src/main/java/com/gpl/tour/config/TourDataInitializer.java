@@ -59,12 +59,68 @@ public class TourDataInitializer implements CommandLineRunner {
 
         Tour tourVrac         = createTourVrac();
         Tour tourBouteilles   = createTourBouteilles();
+        Tour tourInternal     = createTourInternal();
 
         createCheckpointsTourVrac(tourVrac);
         createCheckpointsTourBouteilles(tourBouteilles);
+        createCheckpointsTourInternal(tourInternal);
 
         log.info("===== Initialisation terminée : {} tournée(s), {} checkpoint(s) créé(s) =====",
                 tourRepository.count(), checkpointRepository.count());
+    }
+
+    /* =========================================================
+     *  TOURNÉE 3 : INTERNAL — gérée en propre par le marketeur
+     * =========================================================
+     *
+     *  Scénario : GPL Cameroun assure elle-même une tournée de bouteilles avec
+     *  sa propre flotte, sans passer par un transporteur.
+     *
+     *  Pourquoi cette tournée existe : les deux tournées seedées sont EXTERNAL,
+     *  donc Flux 2a (INTERNAL) n'était pas praticable sur les données de
+     *  départ. Le chemin DRAFT -> PLANNED -> INPROGRESS -> CHECKPOINTACTIVE
+     *  -> CLOSED n'avait aucun Exemplaire à parcourir.
+     *
+     *  Note : INTERNAL n'exige pas de transporteur, et gpl_tour_db n'a pas de
+     *  clé étrangère vers fleet, donc les identifiants de véhicule et de
+     *  chauffeur sont des placeholders fonctionnels — les Affectations se font
+     *  via /assign-vehicle et /assign-driver.
+     */
+    private Tour createTourInternal() {
+        Tour tour = new Tour();
+        tour.setTourCode("T-INT-BTL-2026-001");
+        tour.setMarketerOrganizationId("MKT-GPL");
+        tour.setExecutionMode("INTERNAL");
+        // INTERNAL: no transporter, and no ack step. The chain is
+        // DRAFT -> PLANNED -> INPROGRESS -> CHECKPOINTACTIVE -> CLOSED.
+        tour.setTransporterOrganizationId(null);
+        tour.setVehicleId("VEH-MKT-GPL-001");
+        tour.setDriverId(null);
+        tour.setDriverPersonId("chauffeur.abc1");
+        tour.setType("BOUTEILLES50KG");
+        tour.setRequestedQuantity(120.0);
+        tour.setLoadedQuantity(null);
+        tour.setDeliveredQuantity(null);
+        tour.setStartedAt(null);
+        tour.setClosedAt(null);
+        tour.updateStatus(TourneeStatus.DRAFT.name(), Lifecycle.labelOf(TourneeStatus.DRAFT));
+        tour.setCreatedBy("SYSTEM_INIT");
+
+        Tour saved = tourRepository.save(tour);
+        log.info("Tournée INTERNAL créée : id={}, code={}, statut={}",
+                saved.getId(), saved.getTourCode(), saved.getStatus());
+        return saved;
+    }
+
+    private void createCheckpointsTourInternal(Tour tour) {
+        Instant now = Instant.now();
+
+        createCheckpoint(tour.getId(), "SITE-CLT-TOTAL-MVAN-001", null,
+                1, now.plus(3, ChronoUnit.HOURS));
+        createCheckpoint(tour.getId(), "SITE-CLT-SUPERMARCHE-NGOUSSO-002", null,
+                2, now.plus(5, ChronoUnit.HOURS));
+
+        log.info("2 checkpoints INTERNAL créés pour la tournée id={}", tour.getId());
     }
 
     /* =========================================================

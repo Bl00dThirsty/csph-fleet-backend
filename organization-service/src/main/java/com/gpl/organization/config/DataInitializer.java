@@ -90,6 +90,46 @@ public class DataInitializer implements CommandLineRunner {
                 clientIndustrial.getId(), clientIndustrial.getCode(), SiteType.CLIENT_SITE.getCode(),
                 "Zone Industrielle, Douala", "Douala", "Littoral", 4.0167, 9.7000);
 
+        /* ── Client delivery sites referenced by the tour seeder ──────────────
+         *
+         * tour-service seeds six checkpoints pointing at SITE-CLT-* ids that no
+         * seeder created, so every seeded stop rendered as a dangling id in the
+         * web UI. They live in organization-service (gpl_organization_db), which
+         * is where a client site belongs — cross-service FKs are not enforced.
+         *
+         * Coordinates are real Douala / Yaoundé delivery points so the map and
+         * corridor views have something to draw.
+         */
+        createSite("SITE-CLT-INDUSTRIES-SARL-001", "IND-BON-001", "Industries SARL — Usine de Bonabéri",
+                "Point de livraison GPL VRAC, usine de Bonabéri",
+                clientIndustrial.getId(), clientIndustrial.getCode(), SiteType.CLIENT_SITE.getCode(),
+                "Bonabéri, Douala IV", "Douala", "Littoral", 4.0930, 9.7400);
+
+        createSite("SITE-CLT-HOTELS-RESTOS-002", "HR-AKW-002", "Hôtels & Restaurants — Cuisine Centrale Akwa",
+                "Point de livraison GPL, cuisine centrale Akwa Nord",
+                clientIndustrial.getId(), clientIndustrial.getCode(), SiteType.CLIENT_SITE.getCode(),
+                "Akwa Nord, Douala", "Douala", "Littoral", 4.0480, 9.7020);
+
+        createSite("SITE-CLT-PME-ENERGIE-003", "PME-BAS-003", "PME Énergie — Zone Industrielle Bassa",
+                "Point de livraison GPL VRAC, PME Énergie",
+                clientIndustrial.getId(), clientIndustrial.getCode(), SiteType.CLIENT_SITE.getCode(),
+                "Zone Industrielle Bassa, Douala", "Douala", "Littoral", 4.0100, 9.6850);
+
+        createSite("SITE-CLT-TOTAL-MVAN-001", "TOT-MVA-001", "Station TOTAL Mvan",
+                "Revendeur agréé bouteilles 50 kg, Mvan",
+                clientIndustrial.getId(), clientIndustrial.getCode(), SiteType.CLIENT_SITE.getCode(),
+                "Mvan, Yaoundé VI", "Yaoundé", "Centre", 3.8280, 11.5520);
+
+        createSite("SITE-CLT-SUPERMARCHE-NGOUSSO-002", "SUP-NGO-002", "Supermarché Ngousso",
+                "Revendeur agréé bouteilles 50 kg, Ngousso",
+                clientIndustrial.getId(), clientIndustrial.getCode(), SiteType.CLIENT_SITE.getCode(),
+                "Ngousso, Yaoundé VI", "Yaoundé", "Centre", 3.8790, 11.5420);
+
+        createSite("SITE-CLT-CENTRE-MVOGMBI-003", "CTR-MVO-003", "Centre de Distribution Mvog-Mbi",
+                "Revendeur agréé bouteilles 50 kg, Mvog-Mbi",
+                clientIndustrial.getId(), clientIndustrial.getCode(), SiteType.CLIENT_SITE.getCode(),
+                "Mvog-Mbi, Yaoundé III", "Yaoundé", "Centre", 3.8830, 11.5190);
+
         log.info("Created {} sites", siteRepository.count());
         log.info("Test data initialization complete!");
     }
