@@ -165,7 +165,17 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "DEVICE_ASSIGN|Assigner un device à une personne/véhicule",
             "DEVICE_UNASSIGN|Retirer un device",
             "DEVICE_VIEW_STATUS|Voir l'historique d'état des devices",
-            "DEVICE_VIEW_POSITION|Voir la position GPS en temps réel"
+            "DEVICE_VIEW_POSITION|Voir la position GPS en temps réel",
+            "fleet.vehicles.read|Consulter les véhicules (API flotte)",
+            "fleet.vehicles.create|Créer un véhicule (API flotte)",
+            "fleet.vehicles.write|Modifier un véhicule (API flotte)",
+            "fleet.vehicles.manage|Supprimer un véhicule (API flotte)",
+            "fleet.devices.read|Consulter les devices (API flotte)",
+            "fleet.devices.create|Créer un device (API flotte)",
+            "fleet.devices.write|Modifier/assigner un device (API flotte)",
+            "fleet.devices.manage|Supprimer un device (API flotte)",
+            "TELEMETRY_INGEST|Injecter des données de télémétrie (GPS)",
+            "TELEMETRY_VIEW|Consulter la télémétrie et les trajectoires"
         );
 
         order = seedPermissions("TOUR", "Tournées, checkpoints & livraisons", order,
@@ -188,14 +198,17 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "CHECKPOINT_SKIP|Sauter un checkpoint (avec raison)",
             "PICKUP_VIEW|Voir les demandes d'enlèvement",
             "PICKUP_CREATE|Créer une demande d'enlèvement",
+            "PICKUP_UPDATE|Modifier une demande d'enlèvement",
             "PICKUP_APPROVE|Approuver une demande",
             "PICKUP_REJECT|Rejeter une demande",
+            "PICKUP_DELETE|Supprimer une demande d'enlèvement",
             "PICKUP_VIEW_ALL|Voir toutes les demandes (cross-org)",
             "PICKUP_VIEW_OWN_ORG|Voir les demandes de son organisation",
             "CONTRACT_VIEW|Voir les contrats transporteurs",
             "CONTRACT_CREATE|Créer un contrat transporteur",
             "CONTRACT_UPDATE|Modifier un contrat",
             "CONTRACT_TERMINATE|Résilier un contrat",
+            "CONTRACT_DELETE|Supprimer un contrat",
             "CONTRACT_VIEW_ALL|Voir tous les contrats (cross-org)"
         );
 
@@ -219,6 +232,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "SCAN_VIEW_ALL|Voir tous les scans (cross-org)",
             "SCAN_VIEW_OWN_ORG|Voir les scans de son organisation",
             "SCAN_EXPORT|Exporter les données de scan",
+            "SCAN_DELETE|Supprimer un événement de scan",
             "SCAN_RESOLVE_CONFLICT|Résoudre un conflit de scan"
         );
 
@@ -236,8 +250,11 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "RECONCILIATION_CREATE|Lancer une réconciliation",
             "RECONCILIATION_VERIFY|Vérifier/valider une réconciliation",
             "RECONCILIATION_VIEW_ALL|Voir toutes les réconciliations (cross-org)",
+            "RECONCILIATION_DELETE|Supprimer une réconciliation",
             "REDESSEMENT_VIEW|Voir les redressements financiers",
             "REDESSEMENT_CREATE|Émettre un redressement",
+            "REDESSEMENT_UPDATE|Modifier/payer/annuler un redressement",
+            "REDESSEMENT_DELETE|Supprimer un redressement",
             "REDESSEMENT_APPROVE|Approuver un redressement",
             "REDESSEMENT_VIEW_ALL|Voir tous les redressements (cross-org)",
             "SUBSIDY_DASHBOARD|Accéder au tableau de bord subventions"
@@ -333,17 +350,19 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "SITE_ACTIVATE", "SITE_DEACTIVATE", "SITE_VIEW_NEARBY", "SITE_ASSIGN_PERSON", "SITE_UNASSIGN_PERSON", "SITE_VIEW_ASSIGNMENTS",
             "VEHICLE_VIEW", "VEHICLE_VIEW_ALL", "VEHICLE_CREATE", "VEHICLE_UPDATE", "VEHICLE_DELETE",
             "DEVICE_VIEW", "DEVICE_VIEW_ALL", "DEVICE_CREATE", "DEVICE_UPDATE", "DEVICE_DELETE",
+            "fleet.vehicles.read", "fleet.vehicles.create", "fleet.vehicles.write", "fleet.vehicles.manage",
+            "fleet.devices.read", "fleet.devices.create", "fleet.devices.write", "fleet.devices.manage",
             "TOUR_VIEW", "TOUR_VIEW_ALL", "TOUR_CREATE", "TOUR_UPDATE", "TOUR_DELETE",
             "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_DELETE", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
             "CYLINDER_VIEW", "CYLINDER_VIEW_ALL", "CYLINDER_CREATE", "CYLINDER_UPDATE", "CYLINDER_TRANSFER",
             "RFID_VIEW", "RFID_CREATE", "RFID_UPDATE", "RFID_DELETE", "RFID_ASSIGN", "RFID_UNASSIGN", "RFID_VIEW_ALL",
-            "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_ALL", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
-            "PICKUP_VIEW", "PICKUP_CREATE", "PICKUP_APPROVE", "PICKUP_REJECT", "PICKUP_VIEW_ALL", "PICKUP_VIEW_OWN_ORG",
-            "CONTRACT_VIEW", "CONTRACT_CREATE", "CONTRACT_UPDATE", "CONTRACT_TERMINATE", "CONTRACT_VIEW_ALL",
+            "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_ALL", "SCAN_EXPORT", "SCAN_DELETE", "SCAN_RESOLVE_CONFLICT",
+            "PICKUP_VIEW", "PICKUP_CREATE", "PICKUP_UPDATE", "PICKUP_APPROVE", "PICKUP_REJECT", "PICKUP_DELETE", "PICKUP_VIEW_ALL", "PICKUP_VIEW_OWN_ORG",
+            "CONTRACT_VIEW", "CONTRACT_CREATE", "CONTRACT_UPDATE", "CONTRACT_TERMINATE", "CONTRACT_DELETE", "CONTRACT_VIEW_ALL",
             "DECLARATION_VIEW", "DECLARATION_VIEW_ALL", "DECLARATION_VIEW_OWN_ORG", "DECLARATION_CREATE", "DECLARATION_UPDATE", "DECLARATION_DELETE",
             "DECLARATION_SUBMIT", "DECLARATION_APPROVE", "DECLARATION_REJECT",
-            "RECONCILIATION_VIEW", "RECONCILIATION_CREATE", "RECONCILIATION_VERIFY", "RECONCILIATION_VIEW_ALL",
-            "REDESSEMENT_VIEW", "REDESSEMENT_CREATE", "REDESSEMENT_APPROVE", "REDESSEMENT_VIEW_ALL",
+            "RECONCILIATION_VIEW", "RECONCILIATION_CREATE", "RECONCILIATION_VERIFY", "RECONCILIATION_VIEW_ALL", "RECONCILIATION_DELETE",
+            "REDESSEMENT_VIEW", "REDESSEMENT_CREATE", "REDESSEMENT_UPDATE", "REDESSEMENT_DELETE", "REDESSEMENT_APPROVE", "REDESSEMENT_VIEW_ALL",
             "SUBSIDY_DASHBOARD",
             "NOTIFICATION_SEND", "NOTIFICATION_SEND_BULK", "NOTIFICATION_VIEW_LOG", "NOTIFICATION_VIEW_LOG_ALL",
             "TEMPLATE_VIEW", "TEMPLATE_CREATE", "TEMPLATE_UPDATE", "TEMPLATE_DELETE",
@@ -358,6 +377,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "AUDIT_VIEW_MODIFICATIONS", "AUDIT_VIEW_STATUS_HISTORY", "AUDIT_VIEW_ALL", "AUDIT_VIEW_OWN_ORG", "AUDIT_EXPORT",
             "DEVICE_VIEW", "DEVICE_VIEW_ALL", "DEVICE_VIEW_STATUS", "DEVICE_VIEW_POSITION",
             "VEHICLE_VIEW", "VEHICLE_VIEW_ALL",
+            "fleet.vehicles.read", "fleet.devices.read", "TELEMETRY_VIEW",
             "TOUR_VIEW", "TOUR_VIEW_ALL", "TOUR_VIEW_OWN_ORG",
             "CHECKPOINT_VIEW", "SCAN_VIEW", "SCAN_VIEW_ALL",
             "SETTINGS_VIEW"
@@ -369,6 +389,8 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "DEVICE_VIEW_STATUS", "DEVICE_VIEW_POSITION", "DEVICE_VIEW_OWN_ORG",
             "RFID_VIEW", "RFID_CREATE", "RFID_UPDATE", "RFID_DELETE", "RFID_ASSIGN", "RFID_UNASSIGN", "RFID_VIEW_ALL",
             "VEHICLE_VIEW", "VEHICLE_UPDATE", "VEHICLE_VIEW_ALL",
+            "fleet.vehicles.read", "fleet.devices.read", "fleet.devices.create", "fleet.devices.write", "fleet.devices.manage",
+            "TELEMETRY_INGEST", "TELEMETRY_VIEW",
             "PERSON_VIEW", "SITE_VIEW", "TOUR_VIEW", "CHECKPOINT_VIEW", "SCAN_VIEW",
             "MONITORING_VIEW", "DASHBOARD_VIEW_ANALYTICS", "AUDIT_VIEW_MODIFICATIONS", "AUTH_VIEW_SESSIONS", "SETTINGS_VIEW"
         );
@@ -392,6 +414,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         grantPermissionsToRole("MARKETER",
             "VEHICLE_VIEW", "VEHICLE_VIEW_ALL", "VEHICLE_CREATE", "VEHICLE_UPDATE", "VEHICLE_DELETE",
             "VEHICLE_ASSIGN_DRIVER", "VEHICLE_UNASSIGN_DRIVER", "VEHICLE_VIEW_OWN_ORG",
+            "fleet.vehicles.read", "fleet.vehicles.create", "fleet.vehicles.write", "fleet.vehicles.manage",
             "PERSON_VIEW", "PERSON_CREATE", "PERSON_UPDATE",
             "ORG_VIEW", "ORG_VIEW_OWN",
             "SITE_VIEW", "SITE_VIEW_OWN", "SITE_CREATE", "SITE_UPDATE", "SITE_VIEW_ALL",
@@ -399,7 +422,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "TOUR_ASSIGN_DRIVER", "TOUR_ASSIGN_VEHICLE",
             "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE",
             "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT", "SCAN_VIEW_ALL",
-            "PICKUP_VIEW", "PICKUP_CREATE", "PICKUP_APPROVE", "PICKUP_REJECT", "PICKUP_VIEW_ALL", "PICKUP_VIEW_OWN_ORG",
+            "PICKUP_VIEW", "PICKUP_CREATE", "PICKUP_UPDATE", "PICKUP_APPROVE", "PICKUP_REJECT", "PICKUP_VIEW_ALL", "PICKUP_VIEW_OWN_ORG",
             "CONTRACT_VIEW",
             "DECLARATION_VIEW", "DECLARATION_VIEW_ALL", "DECLARATION_VIEW_OWN_ORG", "DECLARATION_CREATE", "DECLARATION_UPDATE", "DECLARATION_SUBMIT",
             "SUBSIDY_DASHBOARD",
@@ -412,6 +435,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         grantPermissionsToRole("TRANSPORTER",
             "VEHICLE_VIEW", "VEHICLE_VIEW_ALL", "VEHICLE_VIEW_OWN_ORG", "VEHICLE_CREATE", "VEHICLE_UPDATE", "VEHICLE_DELETE",
             "VEHICLE_ASSIGN_DRIVER", "VEHICLE_UNASSIGN_DRIVER", "VEHICLE_ACTIVATE", "VEHICLE_DEACTIVATE",
+            "fleet.vehicles.read", "fleet.vehicles.create", "fleet.vehicles.write", "fleet.vehicles.manage",
             "PERSON_VIEW", "PERSON_CREATE", "PERSON_UPDATE",
             "ORG_VIEW", "ORG_VIEW_OWN",
             "SITE_VIEW", "SITE_VIEW_OWN",
@@ -423,6 +447,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "PICKUP_VIEW", "PICKUP_VIEW_OWN_ORG",
             "CONTRACT_VIEW",
             "DEVICE_VIEW", "DEVICE_VIEW_STATUS", "DEVICE_VIEW_POSITION", "DEVICE_VIEW_OWN_ORG",
+            "fleet.devices.read", "TELEMETRY_VIEW",
             "RFID_VIEW", "RFID_UPDATE", "RFID_ASSIGN", "RFID_VIEW_ALL",
             "CYLINDER_VIEW", "CYLINDER_VIEW_OWN_ORG",
             "DECLARATION_VIEW", "SUBSIDY_DASHBOARD",
@@ -437,6 +462,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
             "RFID_VIEW", "RFID_UPDATE", "RFID_ASSIGN", "RFID_VIEW_ALL",
             "DEVICE_VIEW", "DEVICE_VIEW_STATUS", "DEVICE_VIEW_POSITION",
+            "fleet.devices.read", "TELEMETRY_VIEW",
             "PICKUP_VIEW", "PICKUP_VIEW_OWN_ORG",
             "CYLINDER_VIEW", "CYLINDER_VIEW_OWN_ORG",
             "DASHBOARD_VIEW", "AUDIT_VIEW_MODIFICATIONS", "NOTIFICATION_VIEW_LOG"
@@ -456,19 +482,21 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         grantPermissionsToRole("SITE_MANAGER",
             "SITE_VIEW", "SITE_VIEW_ALL", "SITE_VIEW_OWN", "SITE_CREATE", "SITE_UPDATE", "SITE_DELETE",
             "SITE_ACTIVATE", "SITE_DEACTIVATE", "SITE_VIEW_NEARBY", "SITE_ASSIGN_PERSON", "SITE_UNASSIGN_PERSON", "SITE_VIEW_ASSIGNMENTS",
-            "CLASS_VIEW", "ORG_VIEW", "PERSON_VIEW", "TOUR_VIEW", "VEHICLE_VIEW", "DEVICE_VIEW"
+            "CLASS_VIEW", "ORG_VIEW", "PERSON_VIEW", "TOUR_VIEW", "VEHICLE_VIEW", "DEVICE_VIEW",
+            "fleet.vehicles.read", "fleet.devices.read"
         );
 
         // OPERATOR (rôle par défaut du plan)
         grantPermissionsToRole("OPERATOR",
             "VEHICLE_VIEW", "VEHICLE_VIEW_OWN_ORG", "VEHICLE_UPDATE", "VEHICLE_ASSIGN_DRIVER",
             "DEVICE_VIEW", "DEVICE_VIEW_OWN_ORG", "DEVICE_UPDATE", "DEVICE_VIEW_STATUS", "DEVICE_VIEW_POSITION",
+            "fleet.vehicles.read", "fleet.devices.read", "TELEMETRY_VIEW",
             "TOUR_VIEW", "TOUR_VIEW_OWN_ORG", "TOUR_UPDATE", "TOUR_ASSIGN_DRIVER", "TOUR_ASSIGN_VEHICLE",
             "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
             "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
             "CYLINDER_VIEW", "CYLINDER_VIEW_OWN_ORG", "CYLINDER_TRANSFER",
             "RFID_VIEW", "RFID_UPDATE", "RFID_ASSIGN",
-            "PICKUP_VIEW", "PICKUP_VIEW_OWN_ORG", "PICKUP_APPROVE", "PICKUP_REJECT",
+            "PICKUP_VIEW", "PICKUP_VIEW_OWN_ORG", "PICKUP_UPDATE", "PICKUP_APPROVE", "PICKUP_REJECT",
             "CONTRACT_VIEW", "CONTRACT_UPDATE",
             "DECLARATION_VIEW", "DECLARATION_VIEW_OWN_ORG", "DECLARATION_UPDATE", "DECLARATION_SUBMIT", "DECLARATION_APPROVE", "DECLARATION_REJECT",
             "RECONCILIATION_VIEW", "RECONCILIATION_VERIFY",
@@ -484,6 +512,7 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "CLASS_VIEW", "CLIENT_SITE_MANAGE",
             "VEHICLE_VIEW", "VEHICLE_VIEW_ALL", "VEHICLE_VIEW_OWN_ORG",
             "DEVICE_VIEW", "DEVICE_VIEW_ALL", "DEVICE_VIEW_OWN_ORG", "DEVICE_VIEW_STATUS", "DEVICE_VIEW_POSITION",
+            "fleet.vehicles.read", "fleet.devices.read", "TELEMETRY_VIEW",
             "TOUR_VIEW", "TOUR_VIEW_ALL", "TOUR_VIEW_OWN_ORG",
             "CHECKPOINT_VIEW", "PICKUP_VIEW", "PICKUP_VIEW_ALL", "PICKUP_VIEW_OWN_ORG",
             "CONTRACT_VIEW", "CONTRACT_VIEW_ALL",
@@ -618,16 +647,15 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         Optional<Role> roleOpt = roleRepository.findByCode(roleCode);
 
         if (personOpt.isPresent() && roleOpt.isPresent()) {
-            Person person = personOpt.get();
             Role role = roleOpt.get();
 
-            if (!userRoleAssignmentRepository.findByPersonId(person.getId()).isEmpty()) {
+            if (!userRoleAssignmentRepository.findByPersonId(personId).isEmpty()) {
                 log.debug("Role assignment for user {} already exists, skipping", personId);
                 return;
             }
 
             UserRoleAssignment ura = new UserRoleAssignment();
-            ura.setPersonId(person.getId());
+            ura.setPersonId(personId);
             ura.setRoleId(role.getId());
             ura.setOrganizationId(organizationId);
             ura.setPrimary(true);
@@ -683,10 +711,9 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         for (String personId : personIds) {
             Optional<Person> personOpt = personRepository.findByPersonId(personId);
             if (personOpt.isPresent()) {
-                Person person = personOpt.get();
                 UserGroupMembership membership = new UserGroupMembership();
                 membership.setId(UUID.randomUUID().toString());
-                membership.setPersonId(person.getId());
+                membership.setPersonId(personId);
                 membership.setGroupId(group.getId());
                 membership.setActive(true);
                 membership.setJoinedAt(Instant.now());
@@ -697,6 +724,5 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         }
 
         group.setMemberCount(addedCount);
-        userGroupRepository.save(group);
     }
 }

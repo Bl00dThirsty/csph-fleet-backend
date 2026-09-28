@@ -1,0 +1,43 @@
+$kind: http-request
+name: POST /declarations  (capture declarationId)
+description: |-
+  `CreateDeclarationRequest` requires `periodStart` and `periodEnd` (`@NotNull`); the organisation and site are
+  optional at this layer, and `getEffectiveOrganizationId()` falls back from `declaringOrganizationId` to
+  `marketerOrganizationId` - so sending both is the explicit, unambiguous choice.
+
+  `declaredVolume` is what the marketer *claims*. The whole point of the reconciliation below is to compare that claim
+  against the tracked volume, so a deliberate 1-unit overstatement here is what makes the redressement step
+  meaningful rather than a formality.
+
+  The period window comes from the collection pre-request, so it is always "the last 30 days" relative to the run.
+url: "{{gateway}}/api/v1/declarations"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "marketerOrganizationId": "{{marketerOrgId}}",
+      "declaringOrganizationId": "{{marketerOrgId}}",
+      "siteId": "{{siteId}}",
+      "periodStart": "{{periodStart}}",
+      "periodEnd": "{{periodEnd}}",
+      "declaredVolume": 12.0,
+      "submittedByPersonId": "{{personId}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('declarationId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('declarationId', j.data.id);
+      });
+      pm.test('starts as DRAFT', function () { pm.expect(j.data.status).to.eql('DRAFT'); });
+    language: text/javascript
+order: 2000

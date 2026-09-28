@@ -1,0 +1,31 @@
+$kind: http-request
+name: PUT :8083/api/v1/persons/{personIdNew}  (no headers needed)
+description: |-
+  **user-service on :8083**, no security headers - `PERSON_UPDATE` is bypassed.
+
+  `UpdatePersonRequest` has no `@NotBlank`, so an empty body is a legal request; the only hard requirement is the
+  person id in the path.
+url: "{{userService}}/api/v1/persons/{{personIdNew}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "firstName": "Postman",
+      "lastName": "Direct {{uniq}} (updated)",
+      "title": "Senior Direct-port QA",
+      "city": "Yaounde",
+      "jobCode": "QA-DIR-002"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('lastName was updated', function () { pm.expect(j.data.lastName).to.include('(updated)'); });
+      pm.test('city was updated', function () { pm.expect(j.data.city).to.eql('Yaounde'); });
+    language: text/javascript
+order: 4000

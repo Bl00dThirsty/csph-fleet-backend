@@ -1,0 +1,42 @@
+$kind: http-request
+name: POST :8088/api/v1/vehicles  (201, unique licensePlate)
+description: |-
+  **fleet-device-service on :8088**, no security headers - `fleet.vehicles.create` is bypassed.
+
+  `CreateVehicleRequest` requires only `licensePlate`, and `vehicles.license_plate` is `VARCHAR(20) UNIQUE`. `DLT-` plus
+  the 15-character `{{uniq}}` is 18 characters - deliberately inside the limit, because an over-length plate is a 500
+  from the database rather than a 400 with a field name in it.
+
+  **201 Created** - `VehicleController.createVehicle` sets `HttpStatus.CREATED` explicitly, unlike most create endpoints
+  in the platform. The test asserts 201 exactly here.
+url: "{{fleetService}}/api/v1/vehicles"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "licensePlate": "DLT-{{uniq}}",
+      "type": "VRAC",
+      "organizationId": "{{transporterOrgId}}",
+      "maxVolume": 12.5,
+      "maxBottleCount": 20,
+      "certificateNumber": "DCERT-{{uniq}}",
+      "certificateExpiryAt": "{{dueDate}}",
+      "tareWeight": 4200.0,
+      "isActive": true,
+      "status": "ACTIVE"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('201 Created', function () { pm.expect(pm.response.code).to.eql(201); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('vehicleId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('vehicleId', j.data.id);
+      });
+    language: text/javascript
+order: 2000

@@ -1,0 +1,24 @@
+$kind: http-request
+name: GET /reconciliations/{reconciliationId}
+description: |-
+  Single reconciliation, enveloped. This is the record a marketer disputes: declared vs tracked volume, bottle
+  imbalance, and the rate applied.
+url: "{{gateway}}/api/v1/reconciliations/{{reconciliationId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('reconciliationId')); });
+      console.log('trackedVolume:', j.data.trackedVolume, 'vs declared 13.5');
+    language: text/javascript
+order: 11000

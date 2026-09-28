@@ -1,0 +1,34 @@
+$kind: http-request
+name: PUT /organizations/{orgId}
+description: |-
+  `UpdateOrganizationRequest` has **no** `code` field and **no** `@NotBlank` anywhere - it is a partial update of
+  descriptive fields only. Sending `code` would be silently ignored, which is why the unique-code strategy does not
+  need repeating here. An empty JSON body is a legal request against this endpoint.
+url: "{{gateway}}/api/v1/organizations/{{orgId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "name": "Postman Test Org {{uniq}} (updated)",
+      "description": "Updated by the csph-gateway Postman collection",
+      "contactPhone": "+237699111111",
+      "website": "https://csph.cm/{{uniq}}/updated",
+      "currency": "XAF",
+      "language": "FR",
+      "timezone": "Africa/Douala"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('name was updated', function () { pm.expect(j.data.name).to.include('(updated)'); });
+      pm.test('timezone echoed', function () { pm.expect(j.data.timezone).to.eql('Africa/Douala'); });
+    language: text/javascript
+order: 4000

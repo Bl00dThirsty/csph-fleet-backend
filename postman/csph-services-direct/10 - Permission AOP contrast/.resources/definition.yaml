@@ -1,0 +1,15 @@
+$kind: collection
+description: |-
+  Three requests against **one** endpoint, differing only in their security headers. Together they are the whole
+  permission model:
+
+  | | `X-User-PersonId` | `X-User-Permissions` | result |
+  | --- | --- | --- | --- |
+  | **A** | absent | absent | **200** - `PermissionAspect` finds no context and passes through |
+  | **B** | present | absent | **403** - context exists, permission missing |
+  | **C** | present | `ORG_VIEW` | **200** - permission found |
+
+  The corollary, stated in request C''s description and worth repeating: the headers are **trusted**, so the service
+  ports must never be reachable from outside the cluster. A caller who can reach :8082 directly can simply assert
+  whatever permission it wants.
+order: 12000

@@ -1,0 +1,350 @@
+{
+  "id": "csph-local-newman",
+  "name": "csph-local",
+  "values": [
+    {
+      "key": "gateway",
+      "value": "http://localhost:8080",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "authService",
+      "value": "http://localhost:8081",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "orgService",
+      "value": "http://localhost:8082",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "userService",
+      "value": "http://localhost:8083",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "auditService",
+      "value": "http://localhost:8084",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "notifService",
+      "value": "http://localhost:8085",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "tourService",
+      "value": "http://localhost:8086",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "cylinderService",
+      "value": "http://localhost:8087",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "fleetService",
+      "value": "http://localhost:8088",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "subsidyService",
+      "value": "http://localhost:8089",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "eureka",
+      "value": "http://localhost:8761",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "mailhogWeb",
+      "value": "http://localhost:8026",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "personId",
+      "value": "superadmin.cspHq",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "username",
+      "value": "superadmin.cspHq",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "password",
+      "value": "Password123!",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "orgId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "siteId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "clientSiteId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "personIdNew",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "roleId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "groupId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "tourId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "checkpointId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "pickupId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "contractId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "vehicleId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "deviceId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "cylinderId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "rfidTagId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "tagUid",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "scanEventId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "declarationId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "reconciliationId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "redressementId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "templateCode",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "personIdLogin",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "permissionId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "marketerOrgId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "transporterOrgId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "clientOrgId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "siteIdDest",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "uniq",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "authHeader",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "tokenType",
+      "value": "Bearer",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "expiresIn",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "nowIso",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "periodStart",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "periodEnd",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "dueDate",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "orgCodeCspHq",
+      "value": "CSPH",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "orgCodeMktGpl",
+      "value": "MKT-GPL",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "orgCodeTrpAbc",
+      "value": "TRP-ABC",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "siteCodeCspHq",
+      "value": "SITE-CSPH-HQ",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "siteCodeDepDla",
+      "value": "SITE-DEP-DLA-PRINCIPAL",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "siteCodeCltInd",
+      "value": "SITE-CLT-IND-RECEPTION",
+      "type": "default",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment",
+  "_postman_exported_using": "postman-api-to-v21"
+}

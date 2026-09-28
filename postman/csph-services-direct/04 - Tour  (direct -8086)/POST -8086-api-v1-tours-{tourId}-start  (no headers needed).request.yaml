@@ -1,0 +1,32 @@
+$kind: http-request
+name: POST :8086/api/v1/tours/{tourId}/start  (no headers needed)
+description: |-
+  **tour-service on :8086**, no security headers - `TOUR_START` is bypassed.
+
+  `DRAFT -> IN_PROGRESS`, with `startedAt` stamped server-side. No body, no parameters.
+
+  Starting a tour twice is a state-machine error, so the test tolerates 409/422 and reports the reason instead of
+  treating a legitimate refusal as a defect.
+url: "{{tourService}}/api/v1/tours/{{tourId}}/start"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('start rejected by the tour state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 6000

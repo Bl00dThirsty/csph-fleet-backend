@@ -1,0 +1,55 @@
+$kind: http-request
+description: |-
+  # CSPH Postman suite - gateway view
+
+  This is a **smoke probe**, not a functional test. It is deliberately unauthenticated so it doubles as an
+  "is the gateway even up?" check.
+
+  Note: `JwtAuthenticationFilter.OPEN_ENDPOINTS` does **not** include `/actuator`, so through the gateway
+  `/actuator/health` answers **401 plain text** until you have logged in. The assertion accepts 200 / 401 / 404
+  for that reason. Re-run `00 - Health & Discovery > actuator health (authenticated)` after `01 - Auth > Login`
+  for a hard 200.
+
+  ## What is in this collection
+
+  * `00 - Health & Discovery` - gateway actuator, the Eureka registry, and the OpenAPI docs of all 9 services.
+  * `01 - Auth` - login / refresh / me / me permissions / patch me / logout. **Login is the keystone** - it
+    publishes `accessToken`, `refreshToken`, `personId`, `username` for every other folder to consume.
+  * `01b - Auth negative cases` - three requests that MUST 401 (missing header, garbage bearer, sites without auth).
+  * `02` .. `09` - one folder per service domain, always prefixed `{{gateway}}/api/v1`.
+
+  ## Two rules that will bite you otherwise
+
+  1. `ipAddress` and `deviceInfo` are **mandatory in practice** in the login body. Omitting `ipAddress` writes a
+     short/NULL value into `auth_users.last_login_ip`, and the *second* login then blows up on a column-length overflow.
+  2. List endpoints `GET /persons/`, `/users/`, `/roles/`, `/groups/`, `/permissions/` need the **trailing slash** -
+     those controllers are mapped `@GetMapping("/")`. No slash, no redirect, just a 404.
+
+  ## Re-runnability
+
+  Everything carrying a unique constraint is suffixed with `{{uniq}}`, regenerated per request by the
+  collection-level pre-request script. Re-running the whole collection does not 409.
+url: "{{gateway}}/actuator/health"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      // The gateway JWT filter guards /actuator, so 401 is a valid answer here - it still proves
+      // the gateway process is alive and routing. A hard 200 comes from the authenticated request
+      // in folder 00.
+      pm.test('gateway reachable', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 401, 404]);
+      });
+      if (pm.response.code === 200) {
+          const h = pm.response.json();
+          pm.test('health status UP', function () { pm.expect(h.status).to.eql('UP'); });
+      } else {
+          console.log('probe body:', pm.response.text().slice(0, 200));
+      }
+    language: text/javascript
+order: 1000

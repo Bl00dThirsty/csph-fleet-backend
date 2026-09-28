@@ -1,0 +1,42 @@
+$kind: http-request
+name: POST /devices  (201 + unique serialNumber -> deviceId)
+description: |-
+  `CreateDeviceRequest` requires `serialNumber` **and** `deviceType`; `devices.serial_number` is `VARCHAR(100) UNIQUE`,
+  so `{{uniq}}` is ample.
+
+  `deviceType` is the common `DeviceType` enum - `GPS`, `PDA` or `RFIDREADER` - not a free string, and the pairing of
+  `batteryLevel` with the derived `batteryCritical` flag is how a low-battery handheld gets flagged before it dies
+  mid-tour.
+
+  **201 Created**, like `POST /vehicles` and for the same reason.
+url: "{{gateway}}/api/v1/devices"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "serialNumber": "DEV-{{uniq}}",
+      "deviceType": "PDA",
+      "firmwareVersion": "3.2.1",
+      "batteryLevel": 88,
+      "batteryCritical": false,
+      "organizationId": "{{transporterOrgId}}",
+      "status": "AVAILABLE"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('201 Created', function () { pm.expect(pm.response.code).to.eql(201); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('deviceId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('deviceId', j.data.id);
+      });
+      pm.test('deviceType round-trips', function () { pm.expect(j.data.deviceType).to.eql('PDA'); });
+    language: text/javascript
+order: 6000

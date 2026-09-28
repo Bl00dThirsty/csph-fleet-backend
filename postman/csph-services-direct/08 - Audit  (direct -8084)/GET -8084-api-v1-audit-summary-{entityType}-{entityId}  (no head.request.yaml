@@ -1,0 +1,28 @@
+$kind: http-request
+name: GET :8084/api/v1/audit/summary/{entityType}/{entityId}  (no headers - bypass)
+description: |-
+  **audit-service on :8084**, no security headers, so the audit read check is bypassed.
+
+  **Two path segments, and `entityType` is the entity''s type, not the API module.** Valid values are `ORGANIZATION`,
+  `SITE`, `PERSON`, `CYLINDER`, `RFID_TAG`, `TOUR`, `VEHICLE`, `DECLARATION` and so on. The module (`AUTH`, `TOUR`,
+  `FLEET`) is a different concept and a different field.
+
+  A wrong `entityType` 404s rather than returning an empty summary, so a typo here is loud rather than silent - which
+  is better than most of the platform.
+url: "{{auditService}}/api/v1/audit/summary/ORGANIZATION/{{orgId}}"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('summary is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      console.log('audit summary:', JSON.stringify(j.data).slice(0, 300));
+    language: text/javascript
+order: 3000

@@ -1,0 +1,42 @@
+$kind: http-request
+name: PUT /declarations/{declarationId}
+description: |-
+  Editable only while the declaration is still a `DRAFT` - that is enforced in the service, so this request must run
+  **before** the `submit` step below. Amending a submitted declaration would defeat the audit trail the subsidy
+  process depends on.
+
+  `declaredVolume` is revised from 12.0 to 13.5, which widens the gap the reconciliation will find.
+url: "{{gateway}}/api/v1/declarations/{{declarationId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "marketerOrganizationId": "{{marketerOrgId}}",
+      "declaringOrganizationId": "{{marketerOrgId}}",
+      "siteId": "{{siteId}}",
+      "periodStart": "{{periodStart}}",
+      "periodEnd": "{{periodEnd}}",
+      "declaredVolume": 13.5,
+      "status": "DRAFT"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('update rejected - a submitted declaration is not editable -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 4000

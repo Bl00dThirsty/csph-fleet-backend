@@ -1,0 +1,36 @@
+$kind: http-request
+name: POST /groups/  (TRAILING SLASH - unique code -> groupId)
+description: |-
+  `CreateGroupRequest` requires `code`, `name`, `organizationId`. `user_groups.code` is `UNIQUE` (100 chars), so
+  `{{uniq}}` keeps the folder re-runnable. `siteId` is optional and scopes the group to one site.
+
+  `isSystemGroup` is deliberately **not** settable from the API - system groups are the ones the seeder owns and
+  should not be editable through a REST call.
+url: "{{gateway}}/api/v1/groups/"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "code": "GRP-{{uniq}}",
+      "name": "Postman Group {{uniq}}",
+      "description": "Created by the csph-gateway Postman collection",
+      "organizationId": "{{orgId}}",
+      "siteId": "{{siteId}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('groupId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('groupId', j.data.id);
+      });
+    language: text/javascript
+order: 24000

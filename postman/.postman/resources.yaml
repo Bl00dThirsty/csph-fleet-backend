@@ -1,0 +1,18 @@
+# Use this workspace to collaborate
+workspace:
+  id: 044bc805-99e2-44ca-a9ef-be7534506101
+
+localResources:
+  collections:
+    - ../csph-gateway
+    - ../csph-services-direct
+  environments:
+    - ../csph-local.postman_environment.json
+    - ../csph-local.environment.yaml
+
+# Each entry here maps a local resource to one or more corresponding objects in Postman Cloud
+
+cloudResources:
+  collections:
+    ../csph-gateway: a1c3e7d5-9b42-4f18-8d6a-2e0b7c4f9a10
+    ../csph-services-direct: c4d8e2f1-6b73-4a95-9e17-8d3f5b0c6a42

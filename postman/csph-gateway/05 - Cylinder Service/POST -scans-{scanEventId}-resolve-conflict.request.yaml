@@ -1,0 +1,37 @@
+$kind: http-request
+name: POST /scans/{scanEventId}/resolve-conflict
+description: |-
+  Manual adjudication of a conflicting scan. `resolutionAction` is a **required body field** (`@NotBlank`); `notes` is
+  the audit justification and should always be filled in a real investigation.
+
+  A scan that is not in conflict will normally be rejected here by the state machine - the test tolerates that and
+  logs it, because "no conflict to resolve" is a correct answer, not a failure.
+url: "{{gateway}}/api/v1/scans/{{scanEventId}}/resolve-conflict"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "resolutionAction": "ACCEPT",
+      "notes": "Postman conflict-resolution probe"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('no conflict to resolve on this scan -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 14000

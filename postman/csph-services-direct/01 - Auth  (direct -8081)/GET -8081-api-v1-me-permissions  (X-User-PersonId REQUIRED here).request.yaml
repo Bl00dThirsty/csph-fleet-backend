@@ -1,0 +1,31 @@
+$kind: http-request
+name: GET :8081/api/v1/me/permissions  (X-User-PersonId REQUIRED here)
+description: |-
+  **auth-service on :8081**.
+
+  The same split-the-header behaviour as `/me`, on the `X-User-Permissions` header. On a direct call nothing populates
+  that header, so the result is `[]` - whereas through the gateway it holds every permission resolved at login.
+
+  This pair (`/me` and `/me/permissions` returning empty role/permission arrays) is the cleanest demonstration in the
+  suite that these two endpoints are **header readers, not database readers**. They compute nothing.
+url: "{{authService}}/api/v1/me/permissions"
+method: GET
+headers:
+  Content-Type: application/json
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array', function () { pm.expect(j.data).to.be.an('array'); });
+      pm.test('empty - no gateway to inject X-User-Permissions', function () {
+          pm.expect(j.data).to.eql([]);
+          console.log('Compare with csph-gateway > 01 - Auth > GET /api/v1/me/permissions, which is non-empty.');
+      });
+    language: text/javascript
+order: 3000

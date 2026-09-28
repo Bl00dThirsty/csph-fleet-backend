@@ -1,0 +1,23 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Namespace for the whole CSPH GPL Fleet Platform.
+#
+# Everything in k8s/base targets this namespace. The dev overlay sets
+# `namespace: csph-gpl` as well, so the base and the overlay cannot drift
+# apart.
+#
+# Pod Security: the images here run as root by default (postgres:16-alpine
+# drops to the `postgres` uid through its entrypoint, but the
+# eclipse-temurin:21-jre-alpine runtime image and axllent/mailhog do not),
+# so the `restricted` profile cannot be enforced. The labels below state that
+# explicitly instead of leaving it implicit; tighten them (and add
+# runAsNonRoot to the JVM Deployments) before this ever leaves dev.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: csph-gpl
+  labels:
+    app.kubernetes.io/part-of: csph-gpl-platform
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

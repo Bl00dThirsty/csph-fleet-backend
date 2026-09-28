@@ -1,0 +1,26 @@
+$kind: http-request
+name: GET :8083/api/v1/persons/{personIdNew}/permissions  (effective, resolved)
+description: |-
+  **user-service on :8083**, no security headers, so `PERMISSION_VIEW` is bypassed.
+
+  The **effective** permission set, flattened from every granted role by `PermissionService.resolvePermissions`. This
+  is the same computation `AuthService` runs at login to build the JWT `permissions` claim.
+
+  A `Set<String>` serialises as a JSON **array**, so the assertion expects an array rather than a `PageResponse`.
+url: "{{userService}}/api/v1/persons/{{personIdNew}}/permissions"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK - permission check was bypassed', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array (Set<String>)', function () { pm.expect(j.data).to.be.an('array'); });
+      console.log('effective permissions (' + j.data.length + '):', j.data.join(', '));
+    language: text/javascript
+order: 8000

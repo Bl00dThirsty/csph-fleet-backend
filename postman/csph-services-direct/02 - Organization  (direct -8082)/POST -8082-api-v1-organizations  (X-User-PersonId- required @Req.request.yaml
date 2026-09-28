@@ -1,0 +1,46 @@
+$kind: http-request
+name: "POST :8082/api/v1/organizations  (X-User-PersonId: required @RequestHeader)"
+description: |-
+  **organization-service on :8082**, with `X-User-PersonId`.
+
+  `OrganizationController.createOrganization` declares `@RequestHeader("X-User-PersonId") String userId` with **no
+  `required = false`** - so on this endpoint the header is not a permission token, it is a mandatory request
+  parameter. Omit it and you get 400 `MissingRequestHeaderException`, never a 403.
+
+  This is the single most important thing to know when working against the direct ports: **the bypass in
+  `PermissionAspect` is not the same as "no headers needed"**. Required `@RequestHeader`s are enforced by Spring MVC
+  before the aspect ever runs.
+
+  `code` carries `{{uniq}}` because `Organization.code` is `UNIQUE` - the same reason the gateway collection does it,
+  and the reason both collections can be re-run against one database.
+url: "{{orgService}}/api/v1/organizations"
+method: POST
+headers:
+  Content-Type: application/json
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "code": "DIR-TST-{{uniq}}",
+      "name": "Postman Direct Org {{uniq}}",
+      "description": "Created by csph-services-direct on :8082",
+      "type": "MKT",
+      "tier": "T3",
+      "contactEmail": "direct-{{uniq}}@cspHq.cm"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('orgId', j.data.id);
+      });
+      pm.test('code round-trips', function () {
+          pm.expect(j.data.code).to.eql('DIR-TST-' + pm.collectionVariables.get('uniq'));
+      });
+    language: text/javascript
+order: 3000

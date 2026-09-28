@@ -1,0 +1,24 @@
+$kind: http-request
+description: |-
+  `JwtAuthenticationFilter.OPEN_ENDPOINTS` does **not** list `/actuator`, so this returns **401 plain text**
+  (`Missing Authorization Header`) on a cold run. 401 still proves the gateway is alive - the next request is the
+  one that gets a hard 200.
+url: "{{gateway}}/actuator/health"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('gateway actuator reachable', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 401, 404]);
+      });
+      if (pm.response.code === 200) {
+          const h = pm.response.json();
+          pm.test('health status UP', function () { pm.expect(h.status).to.eql('UP'); });
+      }
+    language: text/javascript
+order: 1000

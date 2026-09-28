@@ -1,0 +1,39 @@
+$kind: http-request
+name: POST /reconciliations  (capture reconciliationId)
+description: |-
+  `CreateReconciliationRequest` requires `declarationId` (`@NotBlank`) and nothing else - the tracked figures are all
+  optional.
+
+  The numbers tell the story: 13.5 t declared against 12.0 t tracked, i.e. a 1.5 t overstatement, and one more bottle
+  going out than coming back. `trackedBottlesOut - trackedBottlesIn` is the leak that the redressement amount below is
+  computed from; `subsidyRate` is the per-tonne rate the regulator applies to the gap.
+url: "{{gateway}}/api/v1/reconciliations"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "declarationId": "{{declarationId}}",
+      "trackedVolume": 12.0,
+      "trackedBottlesOut": 14,
+      "trackedBottlesIn": 13,
+      "subsidyRate": 625.0,
+      "verifiedByPersonId": "{{personId}}",
+      "notes": "Postman reconciliation probe - 1.5 t less than declared"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('reconciliationId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('reconciliationId', j.data.id);
+      });
+    language: text/javascript
+order: 10000

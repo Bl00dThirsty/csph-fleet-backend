@@ -1,0 +1,27 @@
+$kind: http-request
+name: DELETE /vehicles/{vehicleId}  (run LAST in this folder)
+description: |-
+  **Last request in folder `06`** - removes the truck created near the top, after its device has been assigned,
+  unassigned and after telemetry has been ingested against it.
+
+  Note the asymmetry: the **device** created in this folder is not deleted. A device outlives the vehicle it was
+  mounted in, and the field history has to stay resolvable - which is also why `POST /telemetry` above needed a real
+  `vehicleId` rather than a random UUID.
+url: "{{gateway}}/api/v1/vehicles/{{vehicleId}}"
+method: DELETE
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+    language: text/javascript
+order: 14000

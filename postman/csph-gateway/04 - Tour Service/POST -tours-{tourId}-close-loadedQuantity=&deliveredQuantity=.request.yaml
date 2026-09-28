@@ -1,0 +1,38 @@
+$kind: http-request
+name: POST /tours/{tourId}/close?loadedQuantity=&deliveredQuantity=
+description: |-
+  Closes the tour and freezes the two quantities the whole subsidy chain depends on: what left the depot and what
+  actually arrived. Both are optional query parameters; when omitted they stay null.
+
+  Loaded 12 / delivered 11 is deliberate - the 1-unit shortfall is the gap `POST /declarations` and the
+  reconciliation in folder `07` exist to account for. A short delivery is normal operating data, not an error.
+
+  Requires every stop to be resolved, so it sits after the validate/skip steps.
+url: "{{gateway}}/api/v1/tours/{{tourId}}/close?loadedQuantity=12&deliveredQuantity=11"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  loadedQuantity: "12"
+  deliveredQuantity: "11"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('close rejected by the tour state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 15000

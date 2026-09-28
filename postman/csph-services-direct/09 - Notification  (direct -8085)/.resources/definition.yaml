@@ -1,0 +1,11 @@
+$kind: collection
+name: 09 - Notification  (direct :8085)
+description: |-
+  notification-service on **8085**, i.e. `http://csph/gpl-notification-service` in-cluster.
+
+  No security headers - this controller declares no identity header on any method, so there is nothing for the
+  permission aspect to bypass.
+
+  Templates are addressed by **business `code`**, never by UUID. `POST /notifications/send` omits `recipientEmail` on
+  purpose so no SMTP connection is attempted and the endpoint answers a clean 200.
+order: 11000

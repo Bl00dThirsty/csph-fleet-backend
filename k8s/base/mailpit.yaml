@@ -1,0 +1,122 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# mailpit — SMTP sink so notification-service never talks to a real mailbox.
+#
+# Three Services because the container speaks two protocols on two ports and
+# the host needs to reach both:
+#   mailpit               ClusterIP  1025 -> 1025   in-cluster SMTP; this is the
+#                                                     name SPRING_MAIL_HOST
+#                                                     resolves for
+#                                                     notification-service
+#   mailpit-nodeport-smtp NodePort   1026 -> 1025   nodePort 21026 -> host 1026
+#   mailpit-nodeport-ui   NodePort   8026 -> 8025   nodePort 28026 -> host 8026
+#                                                     (web UI, "Try it out")
+#
+# The Service ports are 1026/8026 purely so they read the same as the host
+# ports in k8s/kind-cluster.yaml; the targetPorts are what the mailpit process
+# actually binds (1025 SMTP, 8025 HTTP). A Service port and a containerPort do
+# not have to be equal, and pointing targetPort at 1026/8026 would just hang.
+#
+# No probes: it is a single-purpose Go binary that is Ready the moment the
+# process is up, and there is no meaningful health state worth failing over.
+# The resource budget is deliberately tiny — it is not part of the request
+# budget the 9 JVMs and 9 databases compete for.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  labels:
+    app.kubernetes.io/name: mailpit
+    app.kubernetes.io/component: infrastructure
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mailpit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mailpit
+        app.kubernetes.io/component: infrastructure
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: mailpit
+          # Mailpit is a public image, so unlike the 11 locally-built csph/*
+          # images it is not in the kind node's containerd and cannot be
+          # `kind load`ed from this Docker Desktop daemon. Let the node pull it.
+          # Use IfNotPresent instead once you mirror it into your own registry.
+          image: axllent/mailpit:latest
+          imagePullPolicy: Always
+          ports:
+            - name: smtp
+              containerPort: 1025
+              protocol: TCP
+            - name: http
+              containerPort: 8025
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+  labels:
+    app.kubernetes.io/name: mailpit
+    app.kubernetes.io/component: infrastructure
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: mailpit
+  ports:
+    - name: smtp
+      port: 1025
+      targetPort: smtp
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit-nodeport-smtp
+  labels:
+    app.kubernetes.io/name: mailpit
+    app.kubernetes.io/component: infrastructure
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: mailpit
+  ports:
+    - name: smtp
+      port: 1026
+      targetPort: smtp
+      nodePort: 30102
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit-nodeport-ui
+  labels:
+    app.kubernetes.io/name: mailpit
+    app.kubernetes.io/component: infrastructure
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: mailpit
+  ports:
+    - name: http
+      port: 8026
+      targetPort: http
+      nodePort: 30103
+      protocol: TCP

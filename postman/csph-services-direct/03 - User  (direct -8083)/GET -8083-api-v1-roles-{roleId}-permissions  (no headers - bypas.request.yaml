@@ -1,0 +1,30 @@
+$kind: http-request
+name: GET :8083/api/v1/roles/{roleId}/permissions  (no headers - bypass)
+description: |-
+  **user-service on :8083**, no security headers, so `ROLE_VIEW` is bypassed.
+
+  Only permissions whose grant row has `granted = true`; `RoleService.getPermissionsForRole` filters on that flag.
+  Enveloped **array**. Tolerates 404 for an unknown `roleId`.
+url: "{{userService}}/api/v1/roles/{{roleId}}/permissions"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200, or 404 when roleId is empty / unknown', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 404]);
+      });
+      const j = pm.response.json();
+      if (pm.response.code === 200) {
+          pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+          pm.test('data is an array', function () { pm.expect(j.data).to.be.an('array'); });
+          console.log('granted permissions (' + j.data.length + ')');
+      } else {
+          console.log('404 - {{roleId}} is empty or unknown. Send GET :8083/api/v1/roles/ first.');
+      }
+    language: text/javascript
+order: 10000

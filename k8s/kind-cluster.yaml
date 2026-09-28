@@ -1,0 +1,114 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# kind cluster definition — CSPH GPL Fleet Platform
+# ═══════════════════════════════════════════════════════════════════════════
+# Single-node Kubernetes-in-Docker. Every one of the 11 Spring Boot services
+# and 9 Postgres databases runs as a pod in this one cluster.
+#
+# The hostPort -> nodePort mappings below keep the SAME ports the application
+# yml files and the legacy docker-compose.yml already use, so no service
+# configuration had to change when moving from Compose to Kubernetes.
+#
+#   host    nodePort  workload
+#   ------  --------  -----------------------------------------------
+#    8080     30080   api-gateway
+#    8081     30081   auth-service
+#    8082     30082   organization-service
+#    8083     30083   user-service
+#    8084     30084   audit-service
+#    8085     30085   notification-service
+#    8086     30086   tour-service
+#    8087     30087   cylinder-service
+#    8088     30088   fleet-device-service
+#    8089     30089   subsidy-service
+#    8761     30761   discovery-server (Eureka)
+#   5500..   30093.. 9 Postgres instances
+#    1026     21026   mailhog SMTP
+#    8026     28026   mailhog web UI
+#
+# Postgres host ports are 5500-5508, NOT the 5433-5441 of the legacy
+# docker-compose.yml, because this machine already runs a native Windows
+# service "postgresql-x64-18" that owns 5433. Port 5432 is avoided for the
+# same reason. The in-cluster DBs still listen on 5432 as usual — only the
+# host-side inspection ports moved.
+# ═══════════════════════════════════════════════════════════════════════════
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: csph-gpl
+
+nodes:
+  - role: control-plane
+    # The host already runs Docker Desktop + other containers. Give the kind
+    # node enough room for 11 JVMs and 9 Postgres instances.
+    extraPortMappings:
+      # ── api-gateway ───────────────────────────────────────────────────
+      - containerPort: 30080          # nodePort
+        hostPort: 8080                # what the frontend / Postman call
+        protocol: TCP
+      # ── business microservices ────────────────────────────────────────
+      - containerPort: 30081
+        hostPort: 8081
+        protocol: TCP
+      - containerPort: 30082
+        hostPort: 8082
+        protocol: TCP
+      - containerPort: 30083
+        hostPort: 8083
+        protocol: TCP
+      - containerPort: 30084
+        hostPort: 8084
+        protocol: TCP
+      - containerPort: 30085
+        hostPort: 8085
+        protocol: TCP
+      - containerPort: 30086
+        hostPort: 8086
+        protocol: TCP
+      - containerPort: 30087
+        hostPort: 8087
+        protocol: TCP
+      - containerPort: 30088
+        hostPort: 8088
+        protocol: TCP
+      - containerPort: 30089
+        hostPort: 8089
+        protocol: TCP
+      # ── discovery-server (Eureka) ─────────────────────────────────────
+      - containerPort: 30761
+        hostPort: 8761
+        protocol: TCP
+      # ── Postgres: 5500..5508 on the host (5432/5433 are taken on this box)
+      - containerPort: 30093
+        hostPort: 5500
+        protocol: TCP
+      - containerPort: 30094
+        hostPort: 5501
+        protocol: TCP
+      - containerPort: 30095
+        hostPort: 5502
+        protocol: TCP
+      - containerPort: 30096
+        hostPort: 5503
+        protocol: TCP
+      - containerPort: 30097
+        hostPort: 5504
+        protocol: TCP
+      - containerPort: 30098
+        hostPort: 5505
+        protocol: TCP
+      - containerPort: 30099
+        hostPort: 5506
+        protocol: TCP
+      - containerPort: 30100
+        hostPort: 5507
+        protocol: TCP
+      - containerPort: 30101
+        hostPort: 5508
+        protocol: TCP
+      # ── MailHog (catches notification-service SMTP so /send returns 200)
+      # NOTE: host 1025/8025 are already taken by the camermove stack.
+      - containerPort: 30102
+        hostPort: 1026
+        protocol: TCP
+      - containerPort: 30103
+        hostPort: 8026
+        protocol: TCP

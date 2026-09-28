@@ -1,0 +1,22 @@
+$kind: http-request
+name: GET /redressements/{redressementId}
+description: "Single redressement, enveloped. `status` here is the whole story: `PENDING` until `pay` or `cancel` resolves it."
+url: "{{gateway}}/api/v1/redressements/{{redressementId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('redressementId')); });
+      console.log('redressement status:', j.data.status, '| amount:', j.data.amount);
+    language: text/javascript
+order: 16000

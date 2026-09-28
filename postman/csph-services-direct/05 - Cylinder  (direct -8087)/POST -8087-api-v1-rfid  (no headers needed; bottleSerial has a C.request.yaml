@@ -1,0 +1,39 @@
+$kind: http-request
+name: POST :8087/api/v1/rfid  (no headers needed; bottleSerial has a CHECK)
+description: |-
+  **cylinder-service on :8087**, no security headers - `RFID_CREATE` reads `X-User-PersonId` with `required = false`.
+
+  `CreateRfidTagRequest` requires only `tagUid` - the EPC written into the tag''s memory.
+
+  **`bottleSerial` carries a database CHECK constraint: `^[A-Z0-9]{8,}$`** - uppercase alphanumeric only, at least 8
+  characters, no dashes. `BT` + a 15-character timestamp satisfies it; `BT-2026-01` would be rejected by Postgres rather
+  than by bean validation, which is a far worse error to debug. `tagUid` has no such constraint.
+url: "{{cylinderService}}/api/v1/rfid"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "tagUid": "E200{{uniq}}",
+      "bottleSerial": "BT{{uniq}}",
+      "currentSiteId": "{{siteId}}",
+      "status": "AVAILABLE"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('rfidTagId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('rfidTagId', j.data.id);
+      });
+      pm.test('tagUid captured (EPC)', function () {
+          pm.expect(j.data.tagUid).to.be.a('string');
+          pm.collectionVariables.set('tagUid', j.data.tagUid);
+      });
+    language: text/javascript
+order: 6000

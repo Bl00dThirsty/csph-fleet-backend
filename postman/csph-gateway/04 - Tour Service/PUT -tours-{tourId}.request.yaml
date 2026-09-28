@@ -1,0 +1,33 @@
+$kind: http-request
+name: PUT /tours/{tourId}
+description: |-
+  `UpdateTourDto` mirrors `CreateTourDto` minus the `@NotNull @Positive` constraint on `requestedQuantity`, so a partial
+  body is accepted. Note the collection pre-request regenerates `{{uniq}}` per request, so the `tourCode` sent here is
+  *not* the one the create used - which is fine, because `tourCode` is being re-stamped rather than matched. If you
+  need a stable value across a chain, set it in a pre-request script instead of relying on `{{uniq}}`.
+url: "{{gateway}}/api/v1/tours/{{tourId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "tourCode": "TOUR-{{uniq}}",
+      "marketerOrganizationId": "{{marketerOrgId}}",
+      "executionMode": "EXTERNAL",
+      "type": "VRAC",
+      "requestedQuantity": 15.0,
+      "transporterOrganizationId": "{{transporterOrgId}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('requestedQuantity updated', function () { pm.expect(j.data.requestedQuantity).to.eql(15.0); });
+    language: text/javascript
+order: 5000

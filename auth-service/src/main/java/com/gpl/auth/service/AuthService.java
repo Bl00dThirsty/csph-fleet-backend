@@ -1,6 +1,7 @@
 package com.gpl.auth.service;
 
 import com.gpl.common.exception.UnauthorizedException;
+import com.gpl.common.exception.DuplicateResourceException;
 import com.gpl.common.exception.ResourceNotFoundException;
 import com.gpl.auth.dto.ChangePasswordRequest;
 import com.gpl.auth.dto.LoginRequest;
@@ -246,10 +247,10 @@ public class AuthService {
     @Transactional
     public ApiResponse<String> register(RegisterAuthUserRequest request) {
         if (authUserRepository.existsByUsername(request.getUsername())) {
-            throw new RuntimeException("Username already exists");
+            throw new DuplicateResourceException("Username already exists");
         }
         if (request.getEmail() != null && authUserRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            throw new DuplicateResourceException("Email already exists");
         }
 
         String pId = request.getPersonId() != null ? request.getPersonId() : UUID.randomUUID().toString();

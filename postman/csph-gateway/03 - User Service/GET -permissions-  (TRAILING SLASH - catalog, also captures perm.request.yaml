@@ -1,0 +1,32 @@
+$kind: http-request
+name: GET /permissions/  (TRAILING SLASH - catalog, also captures permissionId)
+description: |-
+  The whole permission catalog, straight from `repository.findAll()`. Enveloped **array**, trailing slash required.
+
+  This is the authoritative list of the `code` strings that every `@RequiresPermission` in the platform checks
+  against, and the source of `{{permissionId}}` for the grant request above.
+
+  Note the two coexisting naming styles: organization / user / tour / fleet services use UPPER_SNAKE codes
+  (`ORG_VIEW`, `SITE_CREATE`, `TOUR_START`, `CHECKPOINT_SKIP`, `fleet.vehicles.read`), while older core modules use
+  dotted lower-case (`tours.create`). Both styles are live in the same `permissions` table.
+url: "{{gateway}}/api/v1/permissions/"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array', function () { pm.expect(j.data).to.be.an('array'); });
+      pm.test('catalog is not empty', function () { pm.expect(j.data.length).to.be.above(0); });
+      if (j.data[0]) { pm.collectionVariables.set('permissionId', j.data[0].id); }
+      console.log('permission catalog (' + j.data.length + '), permissionId=' + pm.collectionVariables.get('permissionId'));
+    language: text/javascript
+order: 21000

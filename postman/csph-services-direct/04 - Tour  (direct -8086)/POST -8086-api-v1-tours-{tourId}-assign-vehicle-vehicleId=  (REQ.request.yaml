@@ -1,0 +1,35 @@
+$kind: http-request
+name: POST :8086/api/v1/tours/{tourId}/assign-vehicle?vehicleId=  (REQUIRED param)
+description: |-
+  **tour-service on :8086**, no security headers - `TOUR_ASSIGN_VEHICLE` is bypassed.
+
+  **`vehicleId` is a REQUIRED query parameter** and this endpoint takes no body. Omitting it is a 400
+  `MissingServletRequestParameterException`, and the failure message says nothing about which parameter was expected -
+  so the assertion below logs the body when that happens.
+
+  `{{vehicleId}}` was seeded by the `GET :8088/api/v1/vehicles` request at the top of this folder.
+url: "{{tourService}}/api/v1/tours/{{tourId}}/assign-vehicle?vehicleId={{vehicleId}}"
+method: POST
+headers:
+  Content-Type: application/json
+queryParams:
+  vehicleId: "{{vehicleId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('assigned, or 400 while vehicleId is empty', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 400, 409, 422]);
+      });
+      const j = pm.response.json();
+      if (pm.response.code === 200) {
+          pm.test('vehicle assigned', function () {
+              pm.expect(j.data.vehicleId).to.eql(pm.collectionVariables.get('vehicleId'));
+          });
+      } else {
+          console.warn('HTTP ' + pm.response.code + ' - ' + String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 5000

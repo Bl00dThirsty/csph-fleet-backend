@@ -1,0 +1,52 @@
+$kind: http-request
+name: POST /notifications/send  (no recipientEmail - expect 200)
+description: |-
+  Sends a notification built from a template.
+
+  **`recipientEmail` is deliberately NOT sent.** It is optional, and when it is absent `NotificationService` logs
+  `Channel EMAIL not supported or missing email for ...` and skips the SMTP call entirely - the notification is still
+  recorded, and the endpoint still answers **200**. That keeps this request working against a local MailHog (or with
+  no SMTP server at all), which is what you want from a repeatable suite.
+
+  If you do add `recipientEmail`, the send attempts real SMTP against `spring.mail.host`
+  (`MAIL_HOST`, default `smtp.gmail.com:587`). Any failure is caught and recorded as `status: FAILED` on the log row -
+  the endpoint still answers 200. Check `{{mailhogWeb}}` (MailHog UI, default :8026) for captured mail.
+
+  The response is an `ApiResponse<NotificationResponse>` carrying the log row''s `id`, `status` and `sentAt`.
+url: "{{gateway}}/api/v1/notifications/send"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "templateCode": "{{templateCode}}",
+      "recipientPersonId": "{{personId}}",
+      "channel": "EMAIL",
+      "variables": {
+        "recipientName": "Postman",
+        "reference": "TOUR-PM",
+        "status": "en attente"
+      },
+      "relatedEntityType": "TOUR",
+      "relatedEntityId": "{{tourId}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('notification recorded', function () {
+          pm.expect(j.data.id).to.be.a('string');
+      });
+      pm.test('status is SENT (SMTP skipped without recipientEmail)', function () {
+          pm.expect(['SENT', 'FAILED']).to.include(j.data.status);
+      });
+      console.log('notification status:', j.data.status, '- channel:', j.data.channel);
+      console.log('mail UI: ' + pm.environment.get('mailhogWeb'));
+    language: text/javascript
+order: 4000

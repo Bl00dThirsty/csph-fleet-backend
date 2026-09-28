@@ -1,0 +1,27 @@
+$kind: http-request
+name: DELETE /cylinders/{cylinderId}  (run LAST in this folder)
+description: |-
+  **Last request in folder `05`**, cleaning up the bottle created near the top. The RFID tag created in this folder is
+  deliberately **not** deleted - a tag outlives the bottles it has been paired with, and the audit trail of a retired
+  tag matters.
+
+  As with the organization delete, this is a soft delete (the entity carries `deleted_at`), so the row survives and
+  `{{uniq}}` in the serial keeps re-runs collision-free regardless.
+url: "{{gateway}}/api/v1/cylinders/{{cylinderId}}"
+method: DELETE
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('envelope success on a soft delete', function () { pm.expect(j.success).to.eql(true); });
+    language: text/javascript
+order: 15000

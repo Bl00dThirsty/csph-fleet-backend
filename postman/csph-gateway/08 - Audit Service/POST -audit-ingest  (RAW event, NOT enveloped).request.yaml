@@ -1,0 +1,46 @@
+$kind: http-request
+name: POST /audit/ingest  (RAW event, NOT enveloped)
+description: |-
+  **The body is a RAW `AuditEvent`, not wrapped in an `ApiResponse` envelope** - this is the one write endpoint in the
+  platform that takes a bare domain object. (Responses are enveloped as usual.)
+
+  `AuditEvent` is the message every microservice publishes on the broker after a write, and audit-service consumes it
+  into `EntityModification` + `FieldChange` rows. This endpoint is the synchronous equivalent - useful for replaying
+  events, and for testing the ingestion path without a broker.
+
+  The field is `actionDescription`; note that `AuthService` sends `description` instead, and both exist on the DTO -
+  another small inconsistency in the same audit surface. Both are sent here so the event is complete either way.
+url: "{{gateway}}/api/v1/audit/ingest"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "entityType": "ORGANIZATION",
+      "entityId": "{{orgId}}",
+      "entityName": "Postman Test Org {{uniq}}",
+      "action": "UPDATE",
+      "actionDescription": "Postman suite ingest probe",
+      "description": "Emitted by the csph-gateway Postman collection",
+      "module": "ORGANIZATION",
+      "changeby": "{{personId}}",
+      "changedate": "{{nowIso}}",
+      "changes": [
+        { "fieldName": "status", "fieldLabel": "Statut", "oldValue": "INACTIVE", "newValue": "ACTIVE", "valueType": "STRING" }
+      ],
+      "deviceInfo": "Postman",
+      "ipAddress": "127.0.0.1"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('ingest acknowledged', function () { pm.expect(String(j.message)).to.include('ingested'); });
+    language: text/javascript
+order: 4000

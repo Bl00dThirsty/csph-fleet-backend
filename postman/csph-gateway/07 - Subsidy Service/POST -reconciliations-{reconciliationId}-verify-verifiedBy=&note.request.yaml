@@ -1,0 +1,35 @@
+$kind: http-request
+name: POST /reconciliations/{reconciliationId}/verify?verifiedBy=&notes=
+description: |-
+  Signs off the reconciliation: `PENDING -> VERIFIED`. Both query parameters are optional.
+
+  Verification is the point of no return - it is what authorises the redressement below, so it is deliberately placed
+  before the `pay` / `cancel` pair.
+url: "{{gateway}}/api/v1/reconciliations/{{reconciliationId}}/verify?verifiedBy={{personId}}&notes=Verified%20by%20the%20Postman%20suite"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  verifiedBy: "{{personId}}"
+  notes: Verified%20by%20the%20Postman%20suite
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an object', function () { pm.expect(j.data).to.be.an('object'); });
+      pm.test('accepted, or rejected by the state machine (200, 409, 422)', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 409, 422]);
+      });
+      if (pm.response.code >= 400) {
+          console.warn('verify rejected by the reconciliation state machine -> HTTP ' + pm.response.code);
+          console.warn(String(pm.response.text()).slice(0, 300));
+      }
+    language: text/javascript
+order: 13000

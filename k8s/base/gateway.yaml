@@ -1,0 +1,117 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# api-gateway — the single front door on host port 8080.
+#
+# Reactive (Spring Cloud Gateway / Netty) with no spring-boot-starter-actuator
+# in api-gateway/pom.xml, so there is no /actuator/health to hit: both probes
+# are tcpSocket. That is the right probe for a gateway regardless — it asserts
+# the reactor is bound and accepting, which is the only thing the gateway
+# itself can be asked.
+#
+# It has no datasource, so it gets no SPRING_DATASOURCE_*; it still reads
+# gpl-app-credentials, which is where GPL_JWT_SECRET lives. That Secret is the
+# same object auth-service reads, so JwtAuthenticationFilter (verify) and
+# JwtService (sign) can never end up with different keys.
+#
+# Service is a single NodePort: 8080 -> 30080, mapped to host 8080 by
+# k8s/kind-cluster.yaml so the frontend and Postman hit localhost:8080 exactly
+# as they did against docker-compose.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/component: application
+data:
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  # The gateway forwards the caller's full permission set as the
+  # X-User-Permissions request header. With permissions correctly seeded there
+  # are 187 codes, which is ~5 KB -- over Tomcat's 8 KB default
+  # max-http-request-header-size, so every gateway request failed with a bare
+  # 400 "Request header is too large". Raise the ceiling to 64 KB.
+  SERVER_MAX_HTTP_REQUEST_HEADER_SIZE: "65536"
+  # Same reason as the 9 services: the gateway resolves `lb://auth-service`
+  # through Eureka, so the registry has to hand back reachable pod IPs.
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-gateway
+        app.kubernetes.io/component: application
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api-gateway
+          image: csph/gpl-api-gateway:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: jvm-common
+            - configMapRef:
+                name: api-gateway-config
+            - secretRef:
+                name: gpl-app-credentials
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 20
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 300m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/component: application
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: api-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      nodePort: 30080
+      protocol: TCP

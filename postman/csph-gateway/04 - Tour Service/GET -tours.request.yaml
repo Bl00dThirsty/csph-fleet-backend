@@ -1,0 +1,33 @@
+$kind: http-request
+name: GET /tours
+description: |-
+  Delivery tours (`delivery_tours` in the schema, `TourResponseDto` on the wire). Enveloped `PageResponse`.
+
+  `TourResponseDto` nests its `checkpoints` inline, so this list alone can show the full itinerary shape - although
+  the dedicated `/tours/{id}/checkpoints` route below is the cheaper way to fetch one tour's stops.
+
+  Statuses follow `PickupStatus`-like ordering: `DRAFT` -> assigned -> started -> closed. Every transition below
+  respects that.
+url: "{{gateway}}/api/v1/tours?size=20"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  size: "20"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      const p = j.data || {};
+      pm.test('page metadata present', function () { pm.expect(p).to.have.property('totalCount'); });
+      const items = p.content || p.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+    language: text/javascript
+order: 2000

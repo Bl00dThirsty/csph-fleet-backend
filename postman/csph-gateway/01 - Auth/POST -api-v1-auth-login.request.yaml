@@ -1,0 +1,88 @@
+$kind: http-request
+name: POST /api/v1/auth/login
+description: |-
+  `AuthController.login` -> `ApiResponse<LoginResponse>`.
+
+  **Seeded logins - 13 users, every one of them password `Password123!`, and `personId == username`:**
+
+  | username | org | seeded by |
+  | --- | --- | --- |
+  | `superadmin.cspHq` | CSPH | `AuthDataInitializer` |
+  | `admin.cspHq` | CSPH | " |
+  | `superviseur.cspHq` | CSPH | " |
+  | `integrateur.cspHq` | CSPH | " |
+  | `operateur.dla` | DEP-DLA | " |
+  | `emplisseur.dla` | DEP-DLA | " |
+  | `operateur.yde` | DEP-YDE | " |
+  | `gest.gpl` | MKT-GPL | " |
+  | `agent.gpl` | MKT-GPL | " |
+  | `chauffeur.abc1` | TRP-ABC | " |
+  | `chauffeur.abc2` | TRP-ABC | " |
+  | `resp.abc` | TRP-ABC | " |
+  | `resp.industries` | CLT-IND | " |
+
+  **`ipAddress` and `deviceInfo` are mandatory in practice.** Only `username` / `password` are `@NotBlank`, but
+  `AuthService.login` writes `request.getIpAddress()` into `auth_users.last_login_ip` and both fields into
+  `refresh_tokens`. Omit `ipAddress` and the first login stores a short/NULL value that overflows its column on the
+  *next* login - the classic "worked once, then never again" trap.
+
+  ### Why the `permissions` test decodes the JWT
+
+  `LoginResponse` has **no** `permissions` field. Permissions are resolved at login, baked into the JWT
+  `permissions` claim, and lifted back out by the gateway into the `X-User-Permissions` header. So the test below
+  decodes the access token payload. `roles`, on the other hand, *is* serialised - but it is legitimately `[]` when
+  user-service is unreachable (`AuthService` swallows that error), so that test only rejects raw UUIDs.
+url: "{{gateway}}/api/v1/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "{{username}}",
+      "password": "{{password}}",
+      "deviceInfo": "Postman",
+      "ipAddress": "127.0.0.1"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('login 200', function () { pm.response.to.have.status(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('accessToken present', function () { pm.expect(j.data.accessToken).to.be.a('string'); });
+      pm.test('refreshToken present', function () { pm.expect(j.data.refreshToken).to.be.a('string'); });
+
+      // ---- roles: catch the classic 'raw UUID leaked into roles' bug ----
+      const roles = j.data.roles || [];
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      pm.test('roles resolved (not UUIDs)', function () {
+          pm.expect(roles).to.be.an('array');
+          const bad = roles.filter(function (r) { return UUID_RE.test(String(r)); });
+          pm.expect(bad, 'roles contained raw UUIDs: ' + bad.join(',')).to.eql([]);
+      });
+      console.log('roles (' + roles.length + '):', roles.length ? roles.join(', ') : '(empty - user-service unreachable?)');
+
+      // ---- permissions live in the JWT claim, not on LoginResponse ----
+      const perms = (function () {
+          if (Array.isArray(j.data.permissions)) { return j.data.permissions; }
+          try {
+              let p = j.data.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+              p = p + '='.repeat((4 - (p.length % 4)) % 4);
+              return JSON.parse(atob(p)).permissions || [];
+          } catch (e) { return []; }
+      })();
+      pm.test('permissions non-empty (JWT claim)', function () { pm.expect(perms.length).to.be.above(0); });
+      console.log('permissions (' + perms.length + '):', perms.join(', '));
+
+      // ---- publish the session for the rest of the suite ----
+      pm.collectionVariables.set('accessToken', j.data.accessToken);
+      pm.collectionVariables.set('refreshToken', j.data.refreshToken);
+      pm.collectionVariables.set('personId', j.data.personId);
+      pm.collectionVariables.set('username', j.data.username);
+      pm.collectionVariables.set('tokenType', j.data.tokenType || 'Bearer');
+      pm.collectionVariables.set('expiresIn', j.data.expiresIn);
+      if (j.data.orgId) { pm.collectionVariables.set('orgId', j.data.orgId); }
+    language: text/javascript
+order: 1000

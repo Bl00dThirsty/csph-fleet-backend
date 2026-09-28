@@ -1,0 +1,10 @@
+$kind: collection
+name: 08 - Audit  (direct :8084)
+description: |-
+  audit-service on **8084**, i.e. `http://csph/gpl-audit-service` in-cluster.
+
+  No security headers - the audit read checks are bypassed and `POST /ingest` declares no identity header at all.
+
+  All three reads are **enveloped** `PageResponse`s, so this folder is internally consistent even though the platform
+  is not. The write takes a **raw** `AuditEvent` rather than an enveloped body.
+order: 10000

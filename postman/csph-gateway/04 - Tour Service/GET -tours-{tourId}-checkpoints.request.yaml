@@ -1,0 +1,26 @@
+$kind: http-request
+name: GET /tours/{tourId}/checkpoints
+description: |-
+  The itinerary: an ordered list of stops. Enveloped **array** (not paged - an itinerary is naturally small).
+
+  `CheckpointResponseDto` carries `siteId` / `clientSiteId` (mutually exclusive - the schema enforces exactly one),
+  `sequence`, planned vs actual arrival, and a stop `status` from `StopStatus` (`PENDING`, `REACHED`,
+  `IN_PROGRESS`, `COMPLETED`, `SKIPPED`, `DELIVERED`, `PARTIAL`, `REJECTED`).
+url: "{{gateway}}/api/v1/tours/{{tourId}}/checkpoints"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array', function () { pm.expect(j.data).to.be.an('array'); });console.log('checkpoints on this tour (' + j.data.length + ')');
+    language: text/javascript
+order: 9000

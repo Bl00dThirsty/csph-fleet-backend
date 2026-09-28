@@ -1,0 +1,46 @@
+$kind: http-request
+name: POST /vehicles  (201 + unique licensePlate -> vehicleId)
+description: |-
+  `CreateVehicleRequest` requires only `licensePlate`, and `vehicles.license_plate` is `VARCHAR(20) UNIQUE` - so the
+  plate must stay inside 20 characters. `LT-` plus the 15-character `{{uniq}}` is 18, deliberately under the limit.
+
+  `organizationId` is the owning transporter, not the marketer.
+
+  **This is a 201, not a 200** - `VehicleController.createVehicle` explicitly sets `HttpStatus.CREATED`, unlike most
+  other create endpoints in the platform. The test accepts both anyway so a future normalisation does not break it.
+url: "{{gateway}}/api/v1/vehicles"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "licensePlate": "LT-{{uniq}}",
+      "type": "VRAC",
+      "organizationId": "{{transporterOrgId}}",
+      "maxVolume": 12.5,
+      "maxBottleCount": 20,
+      "certificateNumber": "CERT-{{uniq}}",
+      "certificateExpiryAt": "{{dueDate}}",
+      "tareWeight": 4200.0,
+      "isActive": true,
+      "status": "ACTIVE"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('201 Created', function () { pm.expect(pm.response.code).to.eql(201); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('vehicleId captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('vehicleId', j.data.id);
+      });
+      pm.test('licensePlate round-trips', function () {
+          pm.expect(j.data.licensePlate).to.eql('LT-' + pm.collectionVariables.get('uniq'));
+      });
+    language: text/javascript
+order: 2000

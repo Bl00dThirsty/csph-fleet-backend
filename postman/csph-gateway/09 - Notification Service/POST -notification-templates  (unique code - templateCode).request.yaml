@@ -1,0 +1,48 @@
+$kind: http-request
+name: POST /notification-templates  (unique code -> templateCode)
+description: |-
+  `CreateTemplateRequest` marks **every** field `@NotBlank` - code, name, subject, bodyTemplate, module, channel,
+  language. That is the strictest create DTO in the platform, and the 400 message names the offending field.
+
+  `code` is the business key used by `/notifications/send` and by `/{code}` lookups, so it carries `{{uniq}}`.
+
+  `bodyTemplate` uses `{{placeholder}}` syntax (double braces) resolved at send time by
+  `NotificationService.resolvePlaceholders` against the request's `variables` map. An unresolved placeholder is left
+  in the body verbatim - there is no error, which is worth remembering when a notification arrives with literal
+  `{{reference}}` in it.
+
+  **The body sends `\{\{recipientName\}\}` with escaped braces, and that matters.** Postman substitutes `{{...}}` in
+  request bodies before the request is sent, so an unescaped placeholder would be replaced with an empty string and
+  the stored template would lose its slots. `\{\{` is how you send a literal `{{`.
+
+  `channel` is `EMAIL` here. Changing it later changes whether the send actually attempts SMTP.
+url: "{{gateway}}/api/v1/notification-templates"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "code": "PM-TPL-{{uniq}}",
+      "name": "Postman Template {{uniq}}",
+      "subject": "Notification Postman {{uniq}}",
+      "bodyTemplate": "Bonjour \{\{recipientName\}\}, votre demande \{\{reference\}\} est \{\{status\}\}. Merci de confirmer la reception. - Postman probe",
+      "module": "TOUR",
+      "channel": "EMAIL",
+      "language": "FR"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('templateCode captured', function () {
+          pm.expect(j.data.code).to.eql('PM-TPL-' + pm.collectionVariables.get('uniq'));
+          pm.collectionVariables.set('templateCode', j.data.code);
+      });
+    language: text/javascript
+order: 1000

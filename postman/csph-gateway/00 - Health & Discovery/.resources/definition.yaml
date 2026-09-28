@@ -1,0 +1,10 @@
+$kind: collection
+description: |-
+  Is the whole platform up? Gateway actuator, the Eureka registry, and the aggregated OpenAPI documents the gateway
+  re-exposes at `/v3/api-docs/<service-id>`.
+
+  `/v3/api-docs*` is in `JwtAuthenticationFilter.OPEN_ENDPOINTS`, so none of these need a token.
+
+  The two actuator requests are deliberately a pair: the first is the cold-start probe (401 is fine, it proves the
+  process is alive), the second needs `01 - Auth > Login` to have run and gives a hard 200.
+order: 2000

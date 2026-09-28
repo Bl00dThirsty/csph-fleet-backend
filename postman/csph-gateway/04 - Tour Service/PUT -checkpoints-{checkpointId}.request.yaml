@@ -1,0 +1,31 @@
+$kind: http-request
+name: PUT /checkpoints/{checkpointId}
+description: |-
+  Partial update of a stop: resequencing, re-planning the arrival, or stamping a status directly.
+
+  Passing `status` here bypasses the `validate` / `skip` actions two requests below - it is the administrative
+  override, useful for back-office correction and a shortcut past the state machine. This suite uses it to move the
+  stop forward so the `validate` step has something to act on.
+url: "{{gateway}}/api/v1/checkpoints/{{checkpointId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "sequence": 1,
+      "expectedArrival": "{{periodEnd}}",
+      "status": "IN_PROGRESS"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('status applied', function () { pm.expect(j.data.status).to.eql('IN_PROGRESS'); });
+    language: text/javascript
+order: 12000

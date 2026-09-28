@@ -1,0 +1,45 @@
+$kind: http-request
+name: POST /scans  (capture scanEventId)
+description: |-
+  `CreateScanEventRequest` requires only `rfidTagId` (`@NotBlank`); the rest is the evidence bundle that makes a scan
+  admissible later.
+
+  `checkpointId` and `rfidTagId` come from folders `04` and `05` respectively, and `scan_events.checkpoint_id` is
+  `NOT NULL` in the schema - so **folder `04` must have run** for this request to succeed. This is the one hard
+  ordering dependency left in the suite, and the folder description calls it out.
+
+  `pdaSyncId` is the handheld''s client-side id: it makes ingestion idempotent when a PDA reconnects after a signal
+  blackspot and replays its buffer, which is the normal case in the field.
+url: "{{gateway}}/api/v1/scans"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "checkpointId": "{{checkpointId}}",
+      "driverPersonId": "{{personId}}",
+      "rfidTagId": "{{rfidTagId}}",
+      "direction": "OUT",
+      "latitude": 4.0511,
+      "longitude": 9.7679,
+      "timestamp": "{{nowIso}}",
+      "meterReading": 1250.0,
+      "photoUrl": "https://csph.cm/photos/{{uniq}}.jpg",
+      "pdaSyncId": "PDA-{{uniq}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('scanEventId captured (UUID)', function () {
+          pm.expect(j.data.id).to.be.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('scanEventId', j.data.id);
+      });
+    language: text/javascript
+order: 12000

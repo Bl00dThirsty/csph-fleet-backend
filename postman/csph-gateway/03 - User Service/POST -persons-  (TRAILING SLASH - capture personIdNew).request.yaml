@@ -1,0 +1,61 @@
+$kind: http-request
+name: POST /persons/  (TRAILING SLASH - capture personIdNew)
+description: |-
+  `CreatePersonRequest` requires only `firstName` + `lastName`. The nested `phones` / `emails` arrays are optional and
+  are exactly what the `/phones` and `/emails` sub-resources return afterwards - the assertions two requests down
+  verify that round-trip rather than just the shape.
+
+  `email` carries `{{uniq}}` so repeated runs do not collide on the unique-email constraint.
+
+  Returns **200, not 201** - the handler returns `ApiResponse` directly rather than through a `ResponseEntity`, so
+  Spring's default 200 applies. There is also a sibling `POST /persons/with-auth` that additionally provisions
+  auth-service credentials, which is what a driver account needs.
+
+  There is **no** `DELETE /persons/{id}`: persons are never deleted through this API.
+
+  Overwrites `personIdNew` (the new UUID) and `personIdLogin` (its business key) for the rest of the folder.
+url: "{{gateway}}/api/v1/persons/"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "firstName": "Postman",
+      "lastName": "User {{uniq}}",
+      "email": "person-{{uniq}}@cspHq.cm",
+      "organizationId": "{{orgId}}",
+      "orgId": "{{orgId}}",
+      "primarySiteId": "{{siteId}}",
+      "title": "QA Engineer",
+      "jobCode": "QA-001",
+      "primaryPhone": "+237699222222",
+      "city": "Douala",
+      "language": "FR",
+      "phones": [
+        { "phoneType": "MOBILE", "number": "+237699222222", "isPrimary": true }
+      ],
+      "emails": [
+        { "emailType": "WORK", "email": "person-{{uniq}}@cspHq.cm", "isPrimary": true }
+      ]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('personIdNew captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+          pm.collectionVariables.set('personIdNew', j.data.id);
+      });
+      pm.test('personIdLogin captured (business key)', function () {
+          pm.expect(j.data.personId).to.be.a('string');
+          pm.collectionVariables.set('personIdLogin', j.data.personId);
+      });
+      console.log('new person: uuid=' + j.data.id + ' key=' + j.data.personId);
+    language: text/javascript
+order: 6000

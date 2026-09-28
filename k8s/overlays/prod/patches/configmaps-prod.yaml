@@ -1,0 +1,113 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# SPRING_PROFILES_ACTIVE: prod, on the 9 service ConfigMaps.
+#
+# ── READ THIS BEFORE RESETTING A DATABASE ON THIS OVERLAY ──────────────────
+# The five seeders are annotated
+#     @Profile({"dev", "test", "local", "default"})
+#   AuthDataInitializer          (auth-service)
+#   DataInitializer              (organization-service)
+#   UserDataInitializer          (user-service)
+#   RolesPermissionsInitializer  (user-service)
+#   TourDataInitializer          (tour-service)
+# and the dev overlay sets SPRING_PROFILES_ACTIVE=dev precisely so they run
+# deterministically rather than by the absence of any profile.
+#
+# Setting the profile to `prod` therefore changes two things at once:
+#
+#   * Hibernate `ddl-auto: update` STILL runs — it is not profile-gated, so
+#     the SCHEMA is created.
+#   * The seeders DO NOT run — every table comes back EMPTY.
+#
+# The result is a database that is structurally perfect and contains no users,
+# no roles, no permissions, no organisations and no tours. Every login fails.
+# Nothing in the logs says why, because nothing failed: the application
+# started cleanly and the table it needed was simply empty.
+#
+# This is the single most dangerous line in the entire prod overlay, and it is
+# the reason k8s/scripts/reset-db.sh refuses to run without --allow-prod when
+# it detects SPRING_PROFILES_ACTIVE=prod in the deployed ConfigMaps.
+#
+# Before the first real deployment you must choose ONE of:
+#   a. LOAD THE DATA EXPLICITLY: run V1__seed_test_data.sql and
+#      csph_gpl_schema_v6_2.sql against each database from a controlled
+#      migration job. Recommended — seed data belongs in a migration, not in
+#      application startup.
+#   b. Add a `prod` entry to the seeder @Profile lists. This is a Java change
+#      and therefore out of scope for this overlay, and it is the wrong answer
+#      anyway: an application that seeds itself on every start will fight every
+#      real migration.
+#   c. Run the first boot with SPRING_PROFILES_ACTIVE=dev, then switch to
+#      prod. Convenient, and it leaves you with a database whose contents
+#      nobody declared.
+#
+# ── WHY ONLY 9, NOT 11 ────────────────────────────────────────────────────
+# api-gateway has no SPRING_PROFILES_ACTIVE in its ConfigMap and does not need
+# one: it has no datasource, no seeders and no application-prod.yml, so
+# pinning a profile there would be a claim about a file that does not exist.
+# discovery-server has no ConfigMap at all, for the same reason — its
+# application.yml is self-contained (server.port 8761,
+# register-with-eureka: false, fetch-registry: false) and the module has no
+# application-{profile}.yml. This mirrors the base's reasoning exactly.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-service-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: organization-service-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audit-service-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-service-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tour-service-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cylinder-service-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fleet-device-service-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: subsidy-service-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"

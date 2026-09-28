@@ -1,0 +1,24 @@
+$kind: http-request
+name: GET /devices/{deviceId}
+description: |-
+  Single device, enveloped. `lastLatitude` / `lastLongitude` / `lastSync` are the cached position - deliberately
+  separate from the telemetry history below, because a device that stopped reporting looks identical to a stationary
+  one unless you look at `lastSync`.
+url: "{{gateway}}/api/v1/devices/{{deviceId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('deviceId')); });
+    language: text/javascript
+order: 7000

@@ -1,0 +1,8 @@
+$kind: collection
+description: |-
+  One probe per port, so a single pass tells you which of the nine services (and the gateway) are actually up.
+
+  Every assertion is deliberately loose - `200`, `401` or `404` all pass. The goal is reachability, not correctness:
+  a `Connection refused` here means the container is down, and every later folder will fail for that reason rather
+  than a real one.
+order: 2000

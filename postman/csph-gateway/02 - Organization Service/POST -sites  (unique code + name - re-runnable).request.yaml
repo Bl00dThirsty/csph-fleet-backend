@@ -1,0 +1,53 @@
+$kind: http-request
+name: POST /sites  (unique code + name -> re-runnable)
+description: |-
+  `CreateSiteRequest` requires `code`, `siteId`, `name`, `organizationId`, `type` (all `@NotBlank`).
+
+  **Two** unique constraints apply, hence `{{uniq}}` in both `code` and `name`: `Site.code` is `UNIQUE`, and
+  `(organizationId, name)` is `UNIQUE`. Forgetting the second one is what produces an intermittent 409 on re-runs.
+
+  `type` is the `SiteType` code: `DEP` depot, `FIL` filling centre, `WHS` warehouse, `OFC` office, `CST` client site,
+  `TRP` transit point.
+
+  Overwrites `siteId` with the new primary key, so the client-site request below targets a site that is guaranteed not
+  to have a client-site row yet.
+url: "{{gateway}}/api/v1/sites"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "code": "SITE-{{uniq}}",
+      "siteId": "SI-{{uniq}}",
+      "name": "Postman Depot {{uniq}}",
+      "description": "Created by the csph-gateway Postman collection",
+      "organizationId": "{{orgId}}",
+      "type": "DEP",
+      "addressLine1": "Rue de la Joie",
+      "city": "Douala",
+      "region": "Littoral",
+      "latitude": 4.0511,
+      "longitude": 9.7679,
+      "geofenceRadiusMeters": 300,
+      "storageCapacityTons": 500.0,
+      "maxVehicleBays": 12
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200/201 created', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('new id captured (UUID)', function () {
+          pm.expect(j.data.id).to.match(/^[0-9a-f-]{36}$/i);
+      });
+      pm.test('code round-trips', function () {
+          pm.expect(j.data.code).to.eql('SITE-' + pm.collectionVariables.get('uniq'));
+      });
+      pm.collectionVariables.set('siteId', j.data.id);
+    language: text/javascript
+order: 11000

@@ -1,0 +1,61 @@
+$kind: http-request
+description: |-
+  # CSPH Postman suite - direct-port view
+
+  Every request in this collection targets a service's **own port**, the way `csph/gpl-<service>` does inside the
+  Kubernetes cluster:
+
+  | var | service | port |
+  | --- | --- | --- |
+  | `{{authService}}` | auth-service | 8081 |
+  | `{{orgService}}` | organization-service | 8082 |
+  | `{{userService}}` | user-service | 8083 |
+  | `{{auditService}}` | audit-service | 8084 |
+  | `{{notifService}}` | notification-service | 8085 |
+  | `{{tourService}}` | tour-service | 8086 |
+  | `{{cylinderService}}` | cylinder-service | 8087 |
+  | `{{fleetService}}` | fleet-device-service | 8088 |
+  | `{{subsidyService}}` | subsidy-service | 8089 |
+
+  The only request that touches the gateway is this one, and `00 - README`.
+
+  ## Why this collection exists
+
+  `PermissionAspect` (common-lib) checks `GplSecurityContext.isAuthenticated()` first, and that flag is true only when
+  `GplSecurityContextFilter` sees a non-empty **`X-User-PersonId`** header. With no header there is no security
+  context, the aspect logs "internal call, pass-through" and **proceeds**. So a direct-port call with no
+  `X-User-PersonId` exercises the full endpoint surface with **no permission constraint** - which is exactly what an
+  in-cluster `csph/gpl-<service>` call does.
+
+  Folder `10 - Permission AOP contrast` proves it with three requests against the same endpoint.
+
+  ## `X-User-PersonId` is still sent where it is a required `@RequestHeader`
+
+  Omitting it is a 400 `MissingRequestHeaderException` on the methods that declare
+  `@RequestHeader("X-User-PersonId")` without `required = false` - notably every write in organization-service, the
+  role/group writes in user-service, `auth-service` logout, and `GET /api/v1/me` (which throws
+  `UnauthorizedException` rather than 400 when the header is blank).
+
+  So: **reads** here send no security headers (bypass demonstrated); **writes that declare the header** send it;
+  everything else sends nothing. Each request description says which case it is.
+
+  ## No Authorization header anywhere
+
+  There is no JWT on these calls. auth-service is the exception and it is deliberate: its `SecurityConfig` marks
+  `/api/v1/auth/**` and `/api/v1/me/**` `permitAll()`, so those two folders work without a token.
+url: "{{gateway}}/actuator/health"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('gateway reachable', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 401, 404]);
+      });
+      console.log('This collection talks to the 9 services directly; the gateway is only used for this probe.');
+    language: text/javascript
+order: 1000

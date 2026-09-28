@@ -1,0 +1,43 @@
+$kind: http-request
+name: PUT /persons/{personIdNew}
+description: |-
+  Partial update of profile fields. `UpdatePersonRequest` carries no `@NotBlank`, so an empty body is legal - the only
+  thing this endpoint truly requires is the person id in the path.
+
+  `deviceClass` + `deviceClassDescription` are the GPL-specific fields deciding which mobile app (Pocket PC / PDA) a
+  person is licensed for; `wfMailElection` and `transEmailElection` are the per-person opt-in flags for the workflow
+  and transport notification mails. Those flags are why a notification to a seeded operator may be a no-op.
+url: "{{gateway}}/api/v1/persons/{{personIdNew}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "firstName": "Postman",
+      "lastName": "User {{uniq}} (updated)",
+      "title": "Senior QA Engineer",
+      "jobCode": "QA-002",
+      "jobCodeDescription": "Quality assurance - Postman probe",
+      "primaryPhone": "+237699333333",
+      "addressLine1": "Avenue de la Liberte",
+      "city": "Yaounde",
+      "supervisorId": "{{personId}}",
+      "deviceClass": 1,
+      "deviceClassDescription": "Pocket PC / PDA",
+      "wfMailElection": true,
+      "transEmailElection": false
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('lastName was updated', function () { pm.expect(j.data.lastName).to.include('(updated)'); });
+      pm.test('city was updated', function () { pm.expect(j.data.city).to.eql('Yaounde'); });
+    language: text/javascript
+order: 7000

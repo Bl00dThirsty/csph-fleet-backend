@@ -1,0 +1,31 @@
+$kind: http-request
+name: PATCH :8082/api/v1/organizations/{orgId}/status  (X-User-PersonId required)
+description: |-
+  **organization-service on :8082**, with `X-User-PersonId` (required `@RequestHeader`).
+
+  `UpdateStatusRequest` = `{newStatus, reason}`, and `OrganizationService.updateStatus` is a plain setter with no enum
+  validation - the same `{newStatus, reason}` shape appears in user-service too, with a matching contract.
+
+  This is the "one domain action" for organization-service: the status lifecycle, which is the write every entity in
+  the platform shares.
+url: "{{orgService}}/api/v1/organizations/{{orgId}}/status"
+method: PATCH
+headers:
+  Content-Type: application/json
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: |-
+    {
+      "newStatus": "INACTIVE",
+      "reason": "Direct-port status probe"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('status is now INACTIVE', function () { pm.expect(j.data.status).to.eql('INACTIVE'); });
+    language: text/javascript
+order: 4000

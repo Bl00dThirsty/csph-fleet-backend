@@ -1,0 +1,17 @@
+{
+  "generatedFrom": "..\\postman",
+  "summary": [
+    {
+      "name": "csph-gateway",
+      "folders": 11,
+      "requests": 145,
+      "withTests": 145
+    },
+    {
+      "name": "csph-services-direct",
+      "folders": 11,
+      "requests": 81,
+      "withTests": 81
+    }
+  ]
+}

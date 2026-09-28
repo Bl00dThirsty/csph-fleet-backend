@@ -1,0 +1,176 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# PodDisruptionBudgets — voluntary-disruption protection for the 11 stateless
+# JVM workloads.
+#
+# WHAT A PDB ACTUALLY DOES, because it is widely misunderstood
+#   A PDB constrains the EVICTION API only. It does nothing about a node
+#   failing, a pod being OOMKilled, or an image being bad. It governs
+#   `kubectl drain`, node upgrades, and cluster-autoscaler scale-down — the
+#   voluntary operations. Everything involuntary is handled by having more
+#   than one replica, which is what patches/jvm-workloads-prod.yaml does.
+#
+#   minAvailable: 1 at 2 replicas means: while draining, at least 1 pod of
+#   this workload must stay Ready. With 2 replicas that permits one pod to go
+#   at a time, so a drain takes 2x the pod startup time but never drops the
+#   service below 1 Ready. That is the point.
+#
+#   The percentage form is used rather than the integer form on purpose: 50%
+#   of 3 (after a scale-up) is 2, and a percentage keeps meaning "half" as the
+#   replica count changes under the HPA. A hardcoded `minAvailable: 1` stops
+#   protecting anything the moment the HPA takes a service to 2 replicas and
+#   a drain can then take both.
+#
+# WHY THERE IS NO PDB FOR THE 9 DATABASES
+#   At 1 replica, any PDB that protects the pod blocks every drain forever and
+#   `kubectl drain` hangs. The honest choice is no PDB and an accepted
+#   downtime window. The full argument is at the top of
+#   patches/postgres-prod.yaml.
+#
+# ⚠ On the current single-node kind cluster these PDBs are harmless: the
+#   second replica of each workload is already Pending (required anti-affinity
+#   on a 1-hostname cluster cannot be satisfied), so a drain simply has
+#   nothing to do. On a real multi-node cluster they are the thing standing
+#   between a node upgrade and an outage.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/component: application
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: discovery-server
+  labels:
+    app.kubernetes.io/name: discovery-server
+    app.kubernetes.io/component: infrastructure
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: discovery-server
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: auth-service
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/component: application
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: auth-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: organization-service
+  labels:
+    app.kubernetes.io/name: organization-service
+    app.kubernetes.io/component: application
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: organization-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: user-service
+  labels:
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/component: application
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: user-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: audit-service
+  labels:
+    app.kubernetes.io/name: audit-service
+    app.kubernetes.io/component: application
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: audit-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notification-service
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/component: application
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tour-service
+  labels:
+    app.kubernetes.io/name: tour-service
+    app.kubernetes.io/component: application
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tour-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cylinder-service
+  labels:
+    app.kubernetes.io/name: cylinder-service
+    app.kubernetes.io/component: application
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cylinder-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fleet-device-service
+  labels:
+    app.kubernetes.io/name: fleet-device-service
+    app.kubernetes.io/component: application
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-device-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: subsidy-service
+  labels:
+    app.kubernetes.io/name: subsidy-service
+    app.kubernetes.io/component: application
+spec:
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: subsidy-service

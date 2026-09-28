@@ -1,0 +1,23 @@
+$kind: http-request
+name: GET :8087/api/v1/cylinders/{cylinderId}  (no headers - bypass)
+description: |-
+  **cylinder-service on :8087**, no security headers, so `CYLINDER_VIEW` is bypassed.
+
+  `CylinderResponse` is the join of the physical asset (serial, brand, capacity) and its administrative state (holder,
+  site, fill status) - "where is this bottle" and "is this bottle usable" are the same record.
+url: "{{cylinderService}}/api/v1/cylinders/{{cylinderId}}"
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('id matches the path variable', function () { pm.expect(j.data.id).to.eql(pm.collectionVariables.get('cylinderId')); });
+    language: text/javascript
+order: 3000

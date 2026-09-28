@@ -1,0 +1,19 @@
+$kind: collection
+description: |-
+  fleet-device-service on :8088, reached through `{{gateway}}/api/v1` - trucks (`/vehicles`), IoT devices
+  (`/devices`) and GPS telemetry (`/telemetry`).
+
+  **Three different response conventions in three adjacent controllers:** `/vehicles` and `/devices` are enveloped
+  `ApiResponse<PageResponse<...>>`, while `/telemetry` answers a bare object on ingest, a **bare object** for the
+  latest position, and a **bare array** for a trajectory. This is the folder where the bare-vs-envelope distinction
+  bites hardest.
+
+  **Creates here return 201**, unlike most of the platform''s create endpoints.
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      if (!pm.collectionVariables.get('accessToken')) {
+          console.warn('No accessToken yet - run 01 - Auth > POST /api/v1/auth/login first. Expect 401s.');
+      }
+    language: text/javascript
+order: 9000

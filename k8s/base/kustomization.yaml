@@ -1,0 +1,33 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Base — the whole GPL RFID platform as it runs on the local kind node.
+#
+# No `namespace:` here on purpose: it is the overlay's job to pin the
+# namespace, so the base stays overlay-agnostic. All resources therefore carry
+# an explicit namespace only when the overlay says so; for a direct
+# `kubectl apply -k k8s/base` add `-n csph-gpl`.
+#
+# No `namePrefix` / `nameSuffix` anywhere in the base or the overlays, ever:
+# discovery-server, postgres-auth, auth-service and friends are literal
+# hostnames baked into the application.yml files and into the Eureka service
+# ids that api-gateway routes on (`lb://auth-service`). Renaming any of them
+# turns every route into a 503 that is painful to debug from a Postman
+# response.
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # identity first — the Namespaces and the two credential objects everything
+  # else references, so the ordering in this list mirrors the apply order
+  - namespace.yaml
+  - secrets.yaml
+  # shared, non-secret JVM tuning injected by every Spring Boot pod
+  - jvm-config.yaml
+  # stateful tier
+  - postgres.yaml
+  # infrastructure tier
+  - discovery.yaml
+  - mailpit.yaml
+  # stateless application tier
+  - services.yaml
+  - gateway.yaml

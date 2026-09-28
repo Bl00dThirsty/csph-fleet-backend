@@ -1,0 +1,29 @@
+$kind: http-request
+name: GET /users/  (TRAILING SLASH - alias of /persons/)
+description: |-
+  `PersonController` is mapped to **both** `/api/v1/persons` and `/api/v1/users` for frontend compatibility, so this
+  is literally the same handler behind a second path. The frontend historically called `/users`, which is why the
+  alias exists. Use `/persons/` for anything new.
+
+  Same bare `PageResponse`, same trailing-slash requirement.
+url: "{{gateway}}/api/v1/users/?size=5"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+queryParams:
+  size: "5"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const d = pm.response.json();
+      pm.test('BARE PageResponse', function () { pm.expect(d).to.not.have.property('success'); });
+      const items = d.content || d.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });
+    language: text/javascript
+order: 3000

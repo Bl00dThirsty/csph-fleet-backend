@@ -1,0 +1,28 @@
+$kind: http-request
+name: GET :8088/api/v1/devices  (no headers - bypass)
+description: |-
+  **fleet-device-service on :8088**, no security headers, so `fleet.devices.read` is bypassed.
+
+  IoT devices: `GPS`, `PDA` or `RFIDREADER` (`DeviceType`), each optionally assigned to a person or a vehicle.
+  Enveloped `PageResponse`.
+url: "{{fleetService}}/api/v1/devices?size=20"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  size: "20"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      const p = j.data || {};
+      pm.test('page metadata present', function () { pm.expect(p).to.have.property('totalCount'); });
+      const items = p.content || p.member || [];
+      pm.test('content is an array', function () { pm.expect(items).to.be.an('array'); });if (items[0]) { pm.collectionVariables.set('deviceId', items[0].id); }
+    language: text/javascript
+order: 4000

@@ -1,0 +1,12 @@
+$kind: collection
+name: 07 - Subsidy  (direct :8089)
+description: |-
+  subsidy-service on **8089**, i.e. `http://csph/gpl-subsidy-service` in-cluster.
+
+  No security headers - this service reads `X-User-Username` with `required = false`, so `createdBy` is null on a
+  direct call.
+
+  **The chain is strictly ordered:** declaration -> reconciliation -> redressement, each link only accepting its own
+  predecessor''s identifier. Folder order is load-bearing, and the `submit` / `review` steps are only legal in that
+  sequence.
+order: 9000

@@ -1,0 +1,62 @@
+$kind: collection
+description: |-
+  # CSPH - services-direct collection (each service on its own port)
+
+  Every request targets a service's **own port** rather than going through the gateway - the local equivalent of
+  `http://csph/gpl-<service>/...` inside Kubernetes.
+
+  ## Why
+
+  `PermissionAspect` (common-lib) checks `GplSecurityContext.isAuthenticated()` first, and that flag is only true when
+  `GplSecurityContextFilter` has seen a non-empty **`X-User-PersonId`** header. With no header there is no security
+  context, the aspect logs "internal call, pass-through" and proceeds.
+
+  So a direct-port request with no `X-User-PersonId` exercises the full endpoint surface with **no permission
+  constraint** - useful for exploring the API, generating fixtures, and debugging a route without having to log in.
+  Folder `10 - Permission AOP contrast` proves the mechanism with three requests.
+
+  **The flip side is in that same folder: the headers are trusted.** Never expose these ports outside the cluster.
+
+  ## Headers
+
+  | case | headers sent |
+  | --- | --- |
+  | reads | none - this is the bypass |
+  | writes declaring `@RequestHeader("X-User-PersonId")` (organization-service, roles, groups, auth logout) | `X-User-PersonId` only |
+  | `GET /api/v1/me`, `/me/permissions` | `X-User-PersonId` - the controller throws 401 without it |
+  | everything else | none |
+
+  `Authorization` is never sent. auth-service permits `/api/v1/auth/**` and `/api/v1/me/**` in its own
+  `SecurityConfig`; every other service has no security chain at all.
+
+  ## Coverage
+
+  Read + create + one domain action per service, plus folder `00` reachability probes for all ten ports and folder
+  `10` for the AOP contrast. The full CRUD surface lives in `csph-gateway` - this collection is the diagnostic view,
+  not a second copy of it.
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      // ==================================================================
+      // CSPH suite - COLLECTION level pre-request.
+      // Same {{uniq}} strategy as csph-gateway, so both collections are
+      // re-runnable against the same database without 409-ing.
+      // ==================================================================
+      var ts = Date.now();
+      pm.collectionVariables.set('uniq', 'PM' + ts);
+      pm.collectionVariables.set('nowIso', new Date(ts).toISOString());
+      pm.collectionVariables.set('periodStart', new Date(ts - 30 * 86400000).toISOString());
+      pm.collectionVariables.set('periodEnd', new Date(ts).toISOString());
+      pm.collectionVariables.set('dueDate', new Date(ts + 30 * 86400000).toISOString());
+    language: text/javascript
+  - type: http:afterResponse
+    code: |-
+      // ---- collection teardown ----
+      pm.test('response received (service reachable on its own port?)', function () {
+          pm.expect(pm.response.code, 'no HTTP response - is this service running?').to.be.a('number');
+      });
+    language: text/javascript
+auth:
+  - id: ""
+    type: noauth
+    name: No Auth

@@ -1,0 +1,32 @@
+$kind: http-request
+name: GET /roles/  (BOOTSTRAP roleId for the assign-role step)
+description: |-
+  Bootstrap request, deliberately placed first in this folder.
+
+  `POST /persons/{id}/roles` needs a `roleId`, but `POST /roles/` runs twelve requests later - so without this
+  bootstrap the assignment step would send an empty `roleId` and fail `@NotBlank` validation. It captures the first
+  existing role (normally `SUPERADMIN`) as a usable `roleId`. `POST /roles/` later overwrites it with the role it
+  creates, which is what the three requests after that one use.
+
+  Enveloped **array** (`ApiResponse<List<RoleResponse>>`), **not** a paged object. The trailing slash is required.
+url: "{{gateway}}/api/v1/roles/"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+  X-User-PersonId: "{{personId}}"
+body:
+  type: json
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', function () { pm.expect(pm.response.code).to.eql(200); });
+      const j = pm.response.json();
+      pm.test('envelope success', function () { pm.expect(j.success).to.eql(true); });
+      pm.test('data is an array (NOT a PageResponse)', function () { pm.expect(j.data).to.be.an('array'); });
+      pm.test('at least one role', function () { pm.expect(j.data.length).to.be.above(0); });
+      if (j.data[0]) { pm.collectionVariables.set('roleId', j.data[0].id); }
+      console.log('bootstrap roleId = ' + pm.collectionVariables.get('roleId') + ' (' + ((j.data[0] || {}).code) + ')');
+    language: text/javascript
+order: 1000
