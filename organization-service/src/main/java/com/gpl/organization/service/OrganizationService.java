@@ -1,7 +1,8 @@
 package com.gpl.organization.service;
 
-import com.gpl.common.exception.DuplicateResourceException;
 import com.gpl.common.dto.PageResponse;
+import com.gpl.common.enums.EntityStatus;
+import com.gpl.common.exception.DuplicateResourceException;
 import com.gpl.organization.dto.*;
 import com.gpl.organization.model.Organization;
 import com.gpl.organization.repository.OrganizationRepository;
@@ -135,10 +136,10 @@ public class OrganizationService {
     public Organization updateStatus(String id, UpdateStatusRequest request, String changedBy) {
         Organization org = organizationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Organization not found"));
-        
-        org.setStatus(request.getNewStatus());
+
+        org.updateStatus(request.getNewStatus(), resolveStatusLabel(request.getNewStatus()));
         org.setChangeby(changedBy);
-        
+
         return organizationRepository.save(org);
     }
 
@@ -146,8 +147,20 @@ public class OrganizationService {
     public void deleteOrganization(String id) {
         Organization org = organizationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Organization not found"));
-        org.setStatus("ARCHIVED");
+        org.updateStatus(EntityStatus.ARCHIVED.getCode(), EntityStatus.ARCHIVED.getDescription());
         organizationRepository.save(org);
+    }
+
+    /**
+     * Human label for an organization status code, falling back to the raw code
+     * so an unknown value stays legible instead of silently reading "Actif".
+     */
+    private String resolveStatusLabel(String code) {
+        try {
+            return EntityStatus.fromCode(code).getDescription();
+        } catch (IllegalArgumentException unknown) {
+            return code;
+        }
     }
 
     private OrganizationResponse buildOrganizationResponse(Organization org) {

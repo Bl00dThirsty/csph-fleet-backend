@@ -46,11 +46,11 @@ public class CylinderServiceImpl implements CylinderService {
         cylinder.setCreatedBy(createdBy != null ? createdBy : "SYSTEM");
         cylinder.setChangeby(createdBy != null ? createdBy : "SYSTEM");
 
-        if (request.getStatus() != null) {
-            cylinder.setStatus(request.getStatus());
-        }
-        if (request.getStatusDescription() != null) {
-            cylinder.setStatusDescription(request.getStatusDescription());
+        if (request.getStatus() != null || request.getStatusDescription() != null) {
+            cylinder.updateStatus(
+                    request.getStatus() != null ? request.getStatus() : cylinder.getStatus(),
+                    request.getStatusDescription() != null
+                            ? request.getStatusDescription() : cylinder.getStatusDescription());
         }
 
         Cylinder saved = cylinderRepository.save(cylinder);
@@ -78,11 +78,11 @@ public class CylinderServiceImpl implements CylinderService {
         if (request.getBrand() != null) cylinder.setBrand(request.getBrand());
         if (request.getCapacityKg() != null) cylinder.setCapacityKg(request.getCapacityKg());
 
-        if (request.getStatus() != null) {
-            cylinder.setStatus(request.getStatus());
-        }
-        if (request.getStatusDescription() != null) {
-            cylinder.setStatusDescription(request.getStatusDescription());
+        if (request.getStatus() != null || request.getStatusDescription() != null) {
+            cylinder.updateStatus(
+                    request.getStatus() != null ? request.getStatus() : cylinder.getStatus(),
+                    request.getStatusDescription() != null
+                            ? request.getStatusDescription() : cylinder.getStatusDescription());
         }
 
         cylinder.setChangeby(changedBy != null ? changedBy : "SYSTEM");
@@ -152,8 +152,11 @@ public class CylinderServiceImpl implements CylinderService {
         if (request.getNotes() != null && !request.getNotes().isBlank()) {
             auditMsg += " (" + request.getNotes() + ")";
         }
-        cylinder.setStatusDescription(auditMsg);
-        cylinder.setStatusDate(java.time.Instant.now());
+        // Behaviour preserved: the transfer never changed the status code, it only
+        // re-stamped label and date. Passing the current code back in keeps the
+        // triple consistent without inventing a transition. The prose-as-label
+        // misuse is inherited, not introduced — tracked with the Site/Person one.
+        cylinder.updateStatus(cylinder.getStatus(), auditMsg);
 
         Cylinder updated = cylinderRepository.save(cylinder);
         return mapToResponse(updated);

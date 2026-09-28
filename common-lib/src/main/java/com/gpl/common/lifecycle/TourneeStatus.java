@@ -1,5 +1,7 @@
 package com.gpl.common.lifecycle;
 
+import com.gpl.common.exception.BusinessException;
+
 /**
  * Statuts d'une tournée de livraison (Flux 2).
  *
@@ -30,5 +32,30 @@ public enum TourneeStatus {
 
     public String getLabel() {
         return label;
+    }
+
+    /**
+     * Résout un statut depuis le code stocké en colonne {@code status}.
+     *
+     * <p>La colonne est un {@code varchar} : elle ne peut pas rejeter un code
+     * inconnu, contrairement à un ENUM Postgres. Cette méthode est donc le seul
+     * endroit où un code hors domaine doit échouer — et elle échoue en 422
+     * (violation de règle métier), pas en 400, parce qu'un code hors domaine
+     *signale un état incohérent en base, pas une requête mal formée.</p>
+     *
+     * @throws BusinessException si le code ne correspond à aucun statut
+     */
+    public static TourneeStatus fromCode(String code) {
+        if (code != null) {
+            String trimmed = code.trim();
+            for (TourneeStatus status : values()) {
+                if (status.name().equalsIgnoreCase(trimmed)) {
+                    return status;
+                }
+            }
+        }
+        throw new BusinessException(
+                "Statut de tournée inconnu : '" + code + "'. Valeurs acceptées : DRAFT, PLANNED, "
+                        + "PENDINGTRANSPORTERACK, ACKNOWLEDGED, INPROGRESS, CHECKPOINTACTIVE, CLOSED, CANCELLED.");
     }
 }

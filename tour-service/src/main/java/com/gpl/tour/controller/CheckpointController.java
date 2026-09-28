@@ -92,15 +92,22 @@ public class CheckpointController {
         return ResponseEntity.ok(ApiResponse.ok(null, "Arrêt de tournée supprimé avec succès"));
     }
 
-    /* ── Phase 3 Checkpoint Execution Endpoints ───────────────────────────── */
+    /* ── Checkpoint Execution Endpoints ────────────────────────────────────
+     *
+     * /validate is gone, replaced by /reach + /complete. The old endpoint set both
+     * facts at once, fusing "the vehicle arrived" (actual_arrival) with "the
+     * delivery finished" — two events a regulator must be able to tell apart, and
+     * two the anomaly timeline depends on.
+     * ────────────────────────────────────────────────────────────────────── */
 
     @RequiresPermission("CHECKPOINT_VALIDATE")
-    @PostMapping("/api/v1/checkpoints/{id}/validate")
-    public ResponseEntity<ApiResponse<CheckpointResponseDto>> validateCheckpoint(
+    @PostMapping("/api/v1/checkpoints/{id}/complete")
+    public ResponseEntity<ApiResponse<CheckpointResponseDto>> completeCheckpoint(
             @PathVariable String id,
             @RequestHeader(value = "X-User-Username", required = false) String username) {
-        log.info("Requête REST pour valider l'arrêt ID: {}", id);
-        return ResponseEntity.ok(ApiResponse.ok(tourService.validateCheckpoint(id, username), "Arrêt de tournée validé avec succès"));
+        log.info("Requête REST pour terminer la livraison de l'arrêt ID: {}", id);
+        return ResponseEntity.ok(ApiResponse.ok(
+                tourService.completeCheckpoint(id, username), "Livraison de l'arrêt enregistrée"));
     }
 
     @RequiresPermission("CHECKPOINT_REACH")

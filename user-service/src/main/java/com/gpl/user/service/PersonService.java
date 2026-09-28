@@ -75,9 +75,7 @@ public class PersonService {
         person.setSupervisorId(request.getSupervisorId());
         person.setDeviceClass(request.getDeviceClass() != null ? request.getDeviceClass() : 0);
 
-        person.setStatus(EntityStatus.ACTIVE.getCode());
-        person.setStatusDescription(EntityStatus.ACTIVE.getDescription());
-        person.setStatusDate(Instant.now());
+        person.updateStatus(EntityStatus.ACTIVE.getCode(), EntityStatus.ACTIVE.getDescription());
         person.setCreatedBy(createdBy != null ? createdBy : "SYSTEM");
 
         Person saved = personRepository.save(person);
@@ -283,9 +281,12 @@ public class PersonService {
     public PersonResponse updatePersonStatus(String id, UpdateStatusRequest request, String changedBy) {
         Person person = personRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Person not found"));
-        person.setStatus(request.getNewStatus());
-        person.setStatusDescription(request.getReason());
-        person.setStatusDate(Instant.now());
+        // Behaviour preserved verbatim: the free-text reason was already being written
+        // into status_description, which the Maximo pattern reserves for the label.
+        // Two consequences carried over unchanged — a null reason violates the column's
+        // NOT NULL, and the "label" reads as prose. Tracked for the Site/Person
+        // lifecycle work; not fixed here because this pass is mechanical.
+        person.updateStatus(request.getNewStatus(), request.getReason());
         person.setChangeby(changedBy);
         person.setChangedate(Instant.now());
         return buildPersonResponse(personRepository.save(person));

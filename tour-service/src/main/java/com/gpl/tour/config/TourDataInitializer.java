@@ -1,5 +1,8 @@
 package com.gpl.tour.config;
 
+import com.gpl.common.lifecycle.CheckpointStatus;
+import com.gpl.common.lifecycle.Lifecycle;
+import com.gpl.common.lifecycle.TourneeStatus;
 import com.gpl.tour.dto.CreateCheckpointDto;
 import com.gpl.tour.dto.CreateTourDto;
 import com.gpl.tour.dto.TourResponseDto;
@@ -74,8 +77,14 @@ public class TourDataInitializer implements CommandLineRunner {
      *  au transporteur Trans-GPL Express (TRP-ABC).
      *
      *  Véhicule : Camion-citerne 20 tonnes
-     *  Quantité totale demandée : 18 000 kg (18 tonnes)
+     *  Quantité totale demandée : 18 TM (tonnes métriques)
      *  Durée estimée de la tournée : 8 heures
+     *
+     *  Unités : le VRAC se compte en TM, jamais en kg. La valeur 18 000.0 qui
+     *  était seedée ici correspondait à 18 tonnes exprimées en kilogrammes — le
+     *  chiffre du graphique était en TM, donc une tournée de 5 TM partait en
+     *  5 000. Comme delivered_quantity alimente la réconciliation de subvention,
+     *  l'erreur était persistée dans la base de calcul, pas seulement affichée.
      */
     private Tour createTourVrac() {
         Tour tour = new Tour();
@@ -91,15 +100,16 @@ public class TourDataInitializer implements CommandLineRunner {
         tour.setDriverId(null);
         tour.setDriverPersonId(null);
         tour.setType("VRAC");
-        tour.setRequestedQuantity(18_000.0);
+        tour.setRequestedQuantity(18.0);
         tour.setLoadedQuantity(null);
         tour.setDeliveredQuantity(null);
         tour.setStartedAt(null);
         tour.setClosedAt(null);
+        tour.updateStatus(TourneeStatus.DRAFT.name(), Lifecycle.labelOf(TourneeStatus.DRAFT));
         tour.setCreatedBy("SYSTEM_INIT");
 
         Tour saved = tourRepository.save(tour);
-        log.info("Tournée VRAC créée : id={}, code={}", saved.getId(), saved.getTourCode());
+        log.info("Tournée VRAC créée : id={}, code={}, statut={}", saved.getId(), saved.getTourCode(), saved.getStatus());
         return saved;
     }
 
@@ -155,8 +165,12 @@ public class TourDataInitializer implements CommandLineRunner {
      *  sous-traitée au transporteur Trans-GPL Express (TRP-ABC).
      *
      *  Véhicule : Camion plateau 10 tonnes (200 bouteilles de 50 kg)
-     *  Quantité totale demandée : 10 000 kg (200 bouteilles × 50 kg)
+     *  Quantité totale demandée : 200 btl (200 bouteilles de 50 kg, soit 10 TM)
      *  Durée estimée de la tournée : 7 heures
+     *
+     *  Unités : les bouteilles se comptent en btl, pas en kg. La valeur 10 000.0
+     *  seedée ici était 200 bouteilles × 50 kg, c'est-à-dire un nombre de
+     *  kilogrammes là où la plate-forme compte des unités de bouteilles.
      */
     private Tour createTourBouteilles() {
         Tour tour = new Tour();
@@ -168,15 +182,17 @@ public class TourDataInitializer implements CommandLineRunner {
         tour.setDriverId(null);
         tour.setDriverPersonId(null);
         tour.setType("BOUTEILLES50KG");
-        tour.setRequestedQuantity(10_000.0);
+        tour.setRequestedQuantity(200.0);
         tour.setLoadedQuantity(null);
         tour.setDeliveredQuantity(null);
         tour.setStartedAt(null);
         tour.setClosedAt(null);
+        tour.updateStatus(TourneeStatus.DRAFT.name(), Lifecycle.labelOf(TourneeStatus.DRAFT));
         tour.setCreatedBy("SYSTEM_INIT");
 
         Tour saved = tourRepository.save(tour);
-        log.info("Tournée BOUTEILLES50KG créée : id={}, code={}", saved.getId(), saved.getTourCode());
+        log.info("Tournée BOUTEILLES50KG créée : id={}, code={}, statut={}",
+                saved.getId(), saved.getTourCode(), saved.getStatus());
         return saved;
     }
 
@@ -224,6 +240,10 @@ public class TourDataInitializer implements CommandLineRunner {
     /* =========================================================
      *  Helper : création d'un checkpoint
      * =========================================================
+     *
+     *  Le checkpoint naît PENDING, comme l'exige checkpoint_status. Le builder ne
+     *  fixait aucun statut, donc chaque arrêt inheritait "ACTIVE" de
+     *  AuditableEntity — un statut de Site, pas un statut d'arrêt.
      */
     private void createCheckpoint(String tourId, String clientSiteId, String siteId,
                                    int sequence, Instant expectedArrival) {
@@ -234,6 +254,7 @@ public class TourDataInitializer implements CommandLineRunner {
                 .sequence(sequence)
                 .expectedArrival(expectedArrival)
                 .build();
+        cp.updateStatus(CheckpointStatus.PENDING.name(), Lifecycle.labelOf(CheckpointStatus.PENDING));
         cp.setCreatedBy("SYSTEM_INIT");
         checkpointRepository.save(cp);
         log.debug("Checkpoint seq={} créé pour tourId={} → clientSiteId={}", sequence, tourId, clientSiteId);

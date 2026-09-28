@@ -603,6 +603,8 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
         role.setDescription(description);
         role.setScopeOrgType(scopeOrgType);
         role.setMinTier(minTier);
+        // Role extends BaseEntity, not AuditableEntity — it carries its own status
+        // pair and has no updateStatus(code, label). Unchanged by the setter closure.
         role.setStatus("ACTIVE");
         role.setStatusDescription("Actif");
         role.setSystemRole(true);

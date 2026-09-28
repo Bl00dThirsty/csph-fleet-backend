@@ -1,8 +1,12 @@
 package com.gpl.tour.service.impl;
 
 import com.gpl.common.dto.PageResponse;
+import com.gpl.common.enums.TourExecutionMode;
 import com.gpl.common.exception.BusinessException;
 import com.gpl.common.exception.ResourceNotFoundException;
+import com.gpl.common.lifecycle.CheckpointStatus;
+import com.gpl.common.lifecycle.Lifecycle;
+import com.gpl.common.lifecycle.TourneeStatus;
 import com.gpl.tour.dto.*;
 import com.gpl.tour.model.Checkpoint;
 import com.gpl.tour.model.Tour;
@@ -51,6 +55,12 @@ public class TourServiceImpl implements TourService {
         tour.setDriverId(dto.getDriverId());
         tour.setDriverPersonId(dto.getDriverPersonId());
 
+        // A tour is born DRAFT, not "ACTIVE". "ACTIVE" is a Site status inherited from
+        // AuditableEntity's field default, and it is not a member of tournee_status —
+        // so every tour was born outside its own status domain and the transition
+        // table could never have been applied to it.
+        tour.updateStatus(TourneeStatus.DRAFT.name(), Lifecycle.labelOf(TourneeStatus.DRAFT));
+
         tour.setCreatedBy(createdBy);
 
         Tour savedTour = tourRepository.save(tour);
@@ -75,14 +85,21 @@ public class TourServiceImpl implements TourService {
     }
 
     /*
-     * Retrieves all Tours with pagination.
+     * Retrieves all Tours with pagination, optionally scoped to one driver.
+     *
+     * A blank driverPersonId means "no scope" and resolves to findAll — the
+     * regulator, the marketer and the superadmin all list the whole fleet.
      */
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<TourResponseDto> getAll(Pageable pageable) {
-        log.info("Fetching all Tours with pagination");
-        Page<Tour> page = tourRepository.findAll(pageable);
-        return PageResponse.of(page.map(this::mapToDto));
+    public PageResponse<TourResponseDto> getAll(String driverPersonId, Pageable pageable) {
+        if (driverPersonId == null || driverPersonId.isBlank()) {
+            log.info("Fetching all Tours with pagination");
+            return PageResponse.of(tourRepository.findAll(pageable).map(this::mapToDto));
+        }
+        log.info("Fetching Tours with pagination for driver: {}", driverPersonId);
+        return PageResponse.of(
+                tourRepository.findByDriverPersonId(driverPersonId, pageable).map(this::mapToDto));
     }
 
     /*
@@ -174,6 +191,10 @@ public class TourServiceImpl implements TourService {
                 .expectedArrival(dto.getExpectedArrival())
                 .skipReason(dto.getSkipReason())
                 .build();
+        // Same defect as the tour birth state: the builder never set a status, so every
+        // checkpoint was born "ACTIVE" — a Site status, not a checkpoint_status value.
+        checkpoint.updateStatus(CheckpointStatus.PENDING.name(),
+                Lifecycle.labelOf(CheckpointStatus.PENDING));
         checkpoint.setCreatedBy(createdBy);
 
         Checkpoint saved = checkpointRepository.save(checkpoint);
@@ -229,15 +250,15 @@ public class TourServiceImpl implements TourService {
         if (dto.getExpectedArrival() != null) {
             checkpoint.setExpectedArrival(dto.getExpectedArrival());
         }
-        if (dto.getActualArrival() != null) {
-            checkpoint.setActualArrival(dto.getActualArrival());
-        }
-        if (dto.getStatus() != null) {
-            checkpoint.setStatus(dto.getStatus());
-        }
         if (dto.getSkipReason() != null) {
             checkpoint.setSkipReason(dto.getSkipReason());
         }
+
+        // No status write, and no actualArrival write. Both were bypasses: a PUT
+        // carrying `status` set any lifecycle state directly, and a PUT carrying
+        // `actualArrival` backdated the arrival evidence that only reachCheckpoint
+        // is allowed to capture. Reached and completed are reached via
+        // POST /api/v1/checkpoints/{id}/reach and .../complete.
 
         checkpoint.setChangeby(updatedBy);
         Checkpoint updated = checkpointRepository.save(checkpoint);
@@ -258,79 +279,151 @@ public class TourServiceImpl implements TourService {
         log.debug("Checkpoint deleted successfully: {}", checkpointId);
     }
 
-    /* ── Lifecycle Operation Workflows ────────────────────────────────────── */
+    /* ── Lifecycle Operation Workflows ─────────────────────────────────────
+     *
+     * Every guard below delegates to com.gpl.common.lifecycle.Lifecycle, which owns
+     * the transition tables for both execution modes and both status domains. The
+     * service holds no status logic of its own: it resolves the current code, asks
+     * the domain whether the move is legal, and writes the pair (code, label)
+     * together.
+     *
+     * The seven hand-written terminal-state blacklists this replaces had already
+     * drifted apart — startTour wrote "STARTED", a code that is not a member of
+     * TourneeStatus, so the transition table could never have described what the
+     * service actually did.
+     * ──────────────────────────────────────────────────────────────────── */
+
+    @Override
+    public TourResponseDto plan(String id, String plannedBy) {
+        log.info("Planning Tour ID: {} by user: {}", id, plannedBy);
+        Tour tour = requireTour(id);
+
+        transition(tour, TourneeStatus.PLANNED);
+        tour.setChangeby(actor(plannedBy));
+
+        return mapToDto(tourRepository.save(tour));
+    }
+
+    @Override
+    public TourResponseDto sendToTransporter(String id, String sentBy) {
+        log.info("Sending Tour ID: {} to transporter by user: {}", id, sentBy);
+        Tour tour = requireTour(id);
+
+        // chk_tournee_external: a subcontracted tour must name its transporter,
+        // otherwise there is nobody to send it to and the ack step has no actor.
+        if (tour.getExecutionMode() == null
+                || !TourExecutionMode.EXTERNAL.name().equalsIgnoreCase(tour.getExecutionMode())) {
+            throw new BusinessException(
+                    "Seule une tournée en mode EXTERNAL peut être transmise à un transporteur. "
+                            + "Mode actuel : " + tour.getExecutionMode() + ".");
+        }
+        if (tour.getTransporterOrganizationId() == null || tour.getTransporterOrganizationId().isBlank()) {
+            throw new BusinessException(
+                    "Une tournée EXTERNAL doit identifier son transporteur avant d'être transmise "
+                            + "(contrainte chk_tournee_external).");
+        }
+
+        transition(tour, TourneeStatus.PENDINGTRANSPORTERACK);
+        tour.setChangeby(actor(sentBy));
+
+        return mapToDto(tourRepository.save(tour));
+    }
+
+    @Override
+    public TourResponseDto acknowledge(String id, String acknowledgedBy) {
+        log.info("Transporter acknowledging Tour ID: {} by user: {}", id, acknowledgedBy);
+        Tour tour = requireTour(id);
+
+        transition(tour, TourneeStatus.ACKNOWLEDGED);
+        // The acknowledgement IS an assignment: record who accepted, and when.
+        tour.setAssignedByTransporterPersonId(actor(acknowledgedBy));
+        tour.setTransporterAssignedAt(java.time.Instant.now());
+        tour.setChangeby(actor(acknowledgedBy));
+
+        return mapToDto(tourRepository.save(tour));
+    }
 
     @Override
     public TourResponseDto startTour(String id, String startedBy) {
         log.info("Starting Tour ID: {} by user: {}", id, startedBy);
-        Tour tour = tourRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
+        Tour tour = requireTour(id);
 
-        if ("COMPLETED".equals(tour.getStatus()) || "CANCELLED".equals(tour.getStatus()) || "CLOSED".equals(tour.getStatus())) {
-            throw new BusinessException("Impossible de démarrer une tournée qui est déjà terminée ou annulée. Statut actuel: " + tour.getStatus());
-        }
-
-        tour.setStatus("STARTED");
-        tour.setStatusDescription("Tournée démarrée et en cours d'exécution");
-        tour.setStatusDate(java.time.Instant.now());
+        transition(tour, TourneeStatus.INPROGRESS);
         tour.setStartedAt(java.time.Instant.now());
-        tour.setChangeby(startedBy != null ? startedBy : "SYSTEM");
+        tour.setChangeby(actor(startedBy));
 
-        Tour saved = tourRepository.save(tour);
-        return mapToDto(saved);
+        return mapToDto(tourRepository.save(tour));
     }
 
     @Override
     public TourResponseDto closeTour(String id, Double loadedQuantity, Double deliveredQuantity, String closedBy) {
         log.info("Closing Tour ID: {} by user: {}", id, closedBy);
-        Tour tour = tourRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
+        Tour tour = requireTour(id);
 
-        if ("CLOSED".equals(tour.getStatus()) || "CANCELLED".equals(tour.getStatus())) {
-            throw new BusinessException("La tournée ID " + id + " est déjà clôturée ou annulée.");
+        transition(tour, TourneeStatus.CLOSED);
+
+        // A tour cannot be closed while a stop is still unaccounted for. Naming the
+        // offending sequences turns a silent close into an actionable refusal.
+        List<String> unresolved = checkpointRepository.findByTourIdOrderBySequenceAsc(tour.getId()).stream()
+                .filter(cp -> !CheckpointStatus.COMPLETED.name().equals(cp.getStatus())
+                        && !CheckpointStatus.SKIPPED.name().equals(cp.getStatus()))
+                .map(cp -> "seq " + cp.getSequence() + " (" + cp.getStatus() + ")")
+                .toList();
+        if (!unresolved.isEmpty()) {
+            throw new BusinessException(
+                    "La tournée ne peut pas être clôturée tant que ses arrêts ne sont pas tous terminés. "
+                            + "Arrêts restants : " + String.join(", ", unresolved) + ".");
         }
 
-        tour.setStatus("CLOSED");
-        tour.setStatusDescription("Tournée achevée et clôturée avec succès");
-        tour.setStatusDate(java.time.Instant.now());
-        tour.setClosedAt(java.time.Instant.now());
+        // delivered_quantity is the subsidy reconciliation input and it arrives as an
+        // unvalidated query parameter. Validating it at the edge is what makes the
+        // figure trustworthy; deriving it from the scans (the TrackedVolume seam)
+        // stays out of scope.
+        if (deliveredQuantity == null) {
+            throw new BusinessException(
+                    "La quantité livrée est obligatoire à la clôture d'une tournée.");
+        }
+        if (deliveredQuantity < 0) {
+            throw new BusinessException(
+                    "La quantité livrée ne peut pas être négative (reçu : " + deliveredQuantity + ").");
+        }
+        if (loadedQuantity != null && deliveredQuantity > loadedQuantity) {
+            throw new BusinessException(
+                    "La quantité livrée (" + deliveredQuantity + ") ne peut pas dépasser la quantité chargée ("
+                            + loadedQuantity + ").");
+        }
 
+        tour.setClosedAt(java.time.Instant.now());
         if (loadedQuantity != null) {
             tour.setLoadedQuantity(loadedQuantity);
         }
-        if (deliveredQuantity != null) {
-            tour.setDeliveredQuantity(deliveredQuantity);
-        }
-        tour.setChangeby(closedBy != null ? closedBy : "SYSTEM");
+        tour.setDeliveredQuantity(deliveredQuantity);
+        tour.setChangeby(actor(closedBy));
 
-        Tour saved = tourRepository.save(tour);
-        return mapToDto(saved);
+        return mapToDto(tourRepository.save(tour));
     }
 
     @Override
     public TourResponseDto cancelTour(String id, String reason, String cancelledBy) {
         log.info("Cancelling Tour ID: {} by user: {}, reason: {}", id, cancelledBy, reason);
-        Tour tour = tourRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
+        Tour tour = requireTour(id);
 
-        if ("CLOSED".equals(tour.getStatus()) || "COMPLETED".equals(tour.getStatus())) {
-            throw new BusinessException("Impossible d'annuler une tournée déjà clôturée.");
+        transition(tour, TourneeStatus.CANCELLED);
+        // A cancellation is explained, so the label carries the reason. The code
+        // stays CANCELLED — a reason is not a status.
+        if (reason != null && !reason.isBlank()) {
+            tour.updateStatus(TourneeStatus.CANCELLED.name(),
+                    Lifecycle.labelOf(TourneeStatus.CANCELLED) + " : " + reason);
         }
+        tour.setChangeby(actor(cancelledBy));
 
-        tour.setStatus("CANCELLED");
-        tour.setStatusDescription(reason != null && !reason.isBlank() ? "Annulée: " + reason : "Tournée annulée");
-        tour.setStatusDate(java.time.Instant.now());
-        tour.setChangeby(cancelledBy != null ? cancelledBy : "SYSTEM");
-
-        Tour saved = tourRepository.save(tour);
-        return mapToDto(saved);
+        return mapToDto(tourRepository.save(tour));
     }
 
     @Override
     public TourResponseDto assignDriver(String id, String driverId, String driverPersonId, String assignedBy) {
         log.info("Assigning driver to Tour ID: {}, driverId: {}, driverPersonId: {}", id, driverId, driverPersonId);
-        Tour tour = tourRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
+        Tour tour = requireTour(id);
 
         if (driverId != null) {
             tour.setDriverId(driverId);
@@ -340,13 +433,15 @@ public class TourServiceImpl implements TourService {
         }
 
         if ("EXTERNAL".equalsIgnoreCase(tour.getExecutionMode())) {
-            tour.setAssignedByTransporterPersonId(assignedBy != null ? assignedBy : "SYSTEM");
+            // Audit only. This deliberately writes NO status: nominating a driver is
+            // not acknowledging a mission, and treating it as such used to erase
+            // PENDINGTRANSPORTERACK from the chain entirely.
+            tour.setAssignedByTransporterPersonId(actor(assignedBy));
             tour.setTransporterAssignedAt(java.time.Instant.now());
         }
 
-        tour.setChangeby(assignedBy != null ? assignedBy : "SYSTEM");
-        Tour saved = tourRepository.save(tour);
-        return mapToDto(saved);
+        tour.setChangeby(actor(assignedBy));
+        return mapToDto(tourRepository.save(tour));
     }
 
     @Override
@@ -362,35 +457,41 @@ public class TourServiceImpl implements TourService {
     }
 
     @Override
-    public CheckpointResponseDto validateCheckpoint(String checkpointId, String validatedBy) {
-        log.info("Validating Checkpoint ID: {} by user: {}", checkpointId, validatedBy);
-        Checkpoint checkpoint = checkpointRepository.findById(checkpointId)
-                .orElseThrow(() -> new ResourceNotFoundException("Checkpoint", "id", checkpointId));
+    public CheckpointResponseDto completeCheckpoint(String checkpointId, String completedBy) {
+        log.info("Completing Checkpoint ID: {} by user: {}", checkpointId, completedBy);
+        Checkpoint checkpoint = requireCheckpoint(checkpointId);
 
-        checkpoint.setStatus("COMPLETED");
-        checkpoint.setStatusDescription("Arrêt validé et confirmé");
-        checkpoint.setStatusDate(java.time.Instant.now());
-        checkpoint.setActualArrival(java.time.Instant.now());
-        checkpoint.setChangeby(validatedBy != null ? validatedBy : "SYSTEM");
+        // REACHED -> COMPLETED. Note what is absent: actualArrival. The arrival
+        // instant is the fact captured by reachCheckpoint, and for a regulator
+        // "the vehicle arrived" and "the delivery finished" are separate events.
+        // Setting both at once, as the old validateCheckpoint did, destroys the
+        // difference the anomaly timeline is built on.
+        transitionCheckpoint(checkpoint, CheckpointStatus.COMPLETED);
+        checkpoint.setChangeby(actor(completedBy));
 
-        Checkpoint saved = checkpointRepository.save(checkpoint);
-        return mapCheckpointToDto(saved);
+        return mapCheckpointToDto(checkpointRepository.save(checkpoint));
     }
 
     @Override
     public CheckpointResponseDto reachCheckpoint(String checkpointId, String reachedBy) {
         log.info("Reaching Checkpoint ID: {} by user: {}", checkpointId, reachedBy);
-        Checkpoint checkpoint = checkpointRepository.findById(checkpointId)
-                .orElseThrow(() -> new ResourceNotFoundException("Checkpoint", "id", checkpointId));
+        Checkpoint checkpoint = requireCheckpoint(checkpointId);
 
-        checkpoint.setStatus("REACHED");
-        checkpoint.setStatusDescription("Arrêt atteint par le livreur");
-        checkpoint.setStatusDate(java.time.Instant.now());
+        transitionCheckpoint(checkpoint, CheckpointStatus.REACHED);
         checkpoint.setActualArrival(java.time.Instant.now());
-        checkpoint.setChangeby(reachedBy != null ? reachedBy : "SYSTEM");
+        checkpoint.setChangeby(actor(reachedBy));
 
-        Checkpoint saved = checkpointRepository.save(checkpoint);
-        return mapCheckpointToDto(saved);
+        // The one implicit transition in the model: the tour enters CHECKPOINTACTIVE
+        // on the FIRST arrival, not on the last completion.
+        Tour tour = requireTour(checkpoint.getTourId());
+        TourneeStatus tourStatus = TourneeStatus.fromCode(tour.getStatus());
+        if (tourStatus == TourneeStatus.INPROGRESS) {
+            transition(tour, TourneeStatus.CHECKPOINTACTIVE);
+            tour.setChangeby(actor(reachedBy));
+            tourRepository.save(tour);
+        }
+
+        return mapCheckpointToDto(checkpointRepository.save(checkpoint));
     }
 
     @Override
@@ -400,17 +501,50 @@ public class TourServiceImpl implements TourService {
             throw new BusinessException("Un motif de saut est obligatoire pour ignorer un arrêt de tournée.");
         }
 
-        Checkpoint checkpoint = checkpointRepository.findById(checkpointId)
-                .orElseThrow(() -> new ResourceNotFoundException("Checkpoint", "id", checkpointId));
+        Checkpoint checkpoint = requireCheckpoint(checkpointId);
 
-        checkpoint.setStatus("SKIPPED");
-        checkpoint.setStatusDescription("Arrêt sauté : " + reason);
-        checkpoint.setStatusDate(java.time.Instant.now());
+        // Reachable from PENDING as well as REACHED, deliberately. closeTour requires
+        // every checkpoint terminal; if SKIPPED were only reachable from REACHED, a
+        // stop the vehicle never drove to could never be terminalised and CLOSED
+        // would be unreachable — a dead end in the state machine.
+        transitionCheckpoint(checkpoint, CheckpointStatus.SKIPPED);
         checkpoint.setSkipReason(reason);
-        checkpoint.setChangeby(skippedBy != null ? skippedBy : "SYSTEM");
+        checkpoint.setChangeby(actor(skippedBy));
 
-        Checkpoint saved = checkpointRepository.save(checkpoint);
-        return mapCheckpointToDto(saved);
+        return mapCheckpointToDto(checkpointRepository.save(checkpoint));
+    }
+
+    /* ── Lifecycle helpers ────────────────────────────────────────────────
+     *
+     * The service owns no status logic. These three helpers are the whole bridge
+     * between a varchar column and the domain: resolve, ask, write.
+     * ────────────────────────────────────────────────────────────────────── */
+
+    private Tour requireTour(String id) {
+        return tourRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tour", "id", id));
+    }
+
+    private Checkpoint requireCheckpoint(String id) {
+        return checkpointRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Checkpoint", "id", id));
+    }
+
+    /** Guarded write of a tour status. Throws 422 if the move is not in the table. */
+    private void transition(Tour tour, TourneeStatus to) {
+        TourExecutionMode mode = TourExecutionMode.fromCode(tour.getExecutionMode());
+        Lifecycle.requireTransition(TourneeStatus.fromCode(tour.getStatus()), to, mode);
+        tour.updateStatus(to.name(), Lifecycle.labelOf(to));
+    }
+
+    /** Guarded write of a checkpoint status. Throws 422 if the move is not legal. */
+    private void transitionCheckpoint(Checkpoint checkpoint, CheckpointStatus to) {
+        Lifecycle.requireTransition(CheckpointStatus.fromCode(checkpoint.getStatus()), to);
+        checkpoint.updateStatus(to.name(), Lifecycle.labelOf(to));
+    }
+
+    private String actor(String username) {
+        return username != null ? username : "SYSTEM";
     }
 
     private TourResponseDto mapToDto(Tour tour) {

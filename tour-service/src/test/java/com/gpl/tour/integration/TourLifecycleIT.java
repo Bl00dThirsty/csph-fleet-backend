@@ -118,17 +118,16 @@ class TourLifecycleIT {
                     "new checkpoint must start in PENDING (a real checkpoint_status enum value)");
         }
 
-        /* ── Step c — transition DRAFT → PLANNED via direct repository setStatus
-         *    UpdateTourDto doesn't expose 'status', so the public update endpoint
-         *    can't do it — we set it directly on the entity (mirrors what a real
-         *    planner UI would do once the v6_2 enum-driven workflow ships).       ── */
-        Tour tour = tourRepository.findById(createdTourId)
-                .orElseThrow(() -> new AssertionError("tour vanished after create"));
-        tour.setStatus("PLANNED");
-        tour.setStatusDescription("Tournée planifiée et prête à démarrer");
-        tour.setStatusDate(Instant.now());
-        tour.setChangeby("tester");
-        tourRepository.saveAndFlush(tour);
+        /* ── Step c — transition DRAFT → PLANNED.
+         *
+         *  This used to reach around the service into tourRepository and call
+         *  tour.setStatus("PLANNED") directly, with a comment conceding it stood in
+         *  for a planner UI that did not exist. The setter is now closed, and the
+         *  public planner endpoint (task 1.5) exists, so the test walks the real
+         *  path instead of fabricating the state.                          ── */
+        TourResponseDto planned = tourService.plan(createdTourId, "marketeur");
+        assertEquals("PLANNED", planned.getStatus(),
+                "plan() must persist PLANNED (a valid tournee_status enum value)");
 
         /* ── Step d — start the tour (PLANNED → STARTED/INPROGRESS) ── */
         TourResponseDto started = tourService.startTour(createdTourId, "livreur");
@@ -153,6 +152,7 @@ class TourLifecycleIT {
                     "reachCheckpoint must persist REACHED");
             assertNotNull(reloaded.getActualArrival(),
                     "reachCheckpoint must stamp actualArrival");
+            final java.time.Instant reachedArrival = reloaded.getActualArrival();
 
             /* scan — VRAC volumetric meter reading at a valid Douala-area geoPoint */
             CreateScanEventDto scanDto = CreateScanEventDto.builder()
@@ -165,12 +165,16 @@ class TourLifecycleIT {
                     .build();
             scanEventService.create(scanDto, livreurUserId);
 
-            /* validate — REACHED → COMPLETED */
-            tourService.validateCheckpoint(cp.getId(), "livreur");
-            Checkpoint validated = checkpointRepository.findById(cp.getId())
-                    .orElseThrow(() -> new AssertionError("checkpoint vanished after validate"));
-            assertEquals("COMPLETED", validated.getStatus(),
-                    "validateCheckpoint must persist COMPLETED (a real checkpoint_status enum value)");
+            /* complete — REACHED → COMPLETED. Note that actualArrival is NOT
+             * restamped: the arrival instant stays the one reach() captured, and
+             * the gap between the two is what the anomaly timeline measures. */
+            tourService.completeCheckpoint(cp.getId(), "livreur");
+            Checkpoint completed = checkpointRepository.findById(cp.getId())
+                    .orElseThrow(() -> new AssertionError("checkpoint vanished after complete"));
+            assertEquals("COMPLETED", completed.getStatus(),
+                    "completeCheckpoint must persist COMPLETED (a real checkpoint_status enum value)");
+            assertEquals(reachedArrival, completed.getActualArrival(),
+                    "completeCheckpoint must NOT restamp actualArrival — that is reach()'s fact");
         }
 
         /* ── Step f — close the tour ── */
