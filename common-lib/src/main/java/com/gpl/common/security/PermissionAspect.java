@@ -7,6 +7,8 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 
+import java.util.Set;
+
 /**
  * Aspect AOP qui intercepte les méthodes annotées avec {@link RequiresPermission}
  * ou {@link RequiresAnyPermission} et vérifie les permissions de l'utilisateur courant
@@ -41,6 +43,21 @@ public class PermissionAspect {
                     required, getMethodName(joinPoint));
             return joinPoint.proceed();
         }
+
+        // SUPERADMIN bypass: holders of the SUPERADMIN role have carte blanche on
+        // every endpoint. This mirrors the spec in csph_gpl_schema_v6_2.sql
+        // (system_role hierarchy SUPERADMIN > ADMIN > ...) and matches the matrix
+        // in `@lpg/permissions` ROLE_GRANTS. Without it, the demo flow cannot
+        // bootstrap a new operator user because the freshly seeded SUPERADMIN
+        // JWT carries zero permissions until role permissions are seeded.
+        Set<String> currentRoles = GplSecurityContext.getCurrentRoles();
+        if (currentRoles.contains("SUPERADMIN")) {
+            log.debug("SUPERADMIN bypass — personId={}, method={}, required={}",
+                    GplSecurityContext.getCurrentPersonId(), getMethodName(joinPoint), required);
+            return joinPoint.proceed();
+        }
+        log.trace("Permission check — personId={}, roles={}, required={}",
+                GplSecurityContext.getCurrentPersonId(), currentRoles, required);
 
         if (!GplSecurityContext.hasPermission(required)) {
             String personId = GplSecurityContext.getCurrentPersonId();

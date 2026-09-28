@@ -7,6 +7,7 @@ import com.gpl.user.dto.*;
 import com.gpl.user.model.Person;
 import com.gpl.user.model.PersonEmail;
 import com.gpl.user.model.PersonPhone;
+import com.gpl.user.model.Role;
 import com.gpl.user.model.UserRoleAssignment;
 import com.gpl.user.repository.PersonEmailRepository;
 import com.gpl.user.repository.PersonPhoneRepository;
@@ -120,19 +121,53 @@ public class PersonService {
      * @param createdBy the identifier of the user creating this person
      * @return the created person response
      */
+    /**
+     * Maps a role coming from a client onto a seeded role code.
+     *
+     * <p>The web client keeps French UI names ({@code LIVREUR}, {@code MARKETEUR},
+     * {@code TRANSPORTEUR}) while the seeded catalogue in
+     * {@code RolesPermissionsInitializer} uses {@code DRIVER}, {@code MARKETER}
+     * and {@code TRANSPORTER}. Without this the lookup below would 404 on every
+     * non-English caller and the person would end up with no role at all.
+     * Anything already matching a seeded code is passed through untouched.
+     */
+    private String normalizeRoleCode(String role) {
+        if (role == null || role.isBlank()) {
+            return "DRIVER";
+        }
+        return switch (role.trim().toUpperCase(Locale.ROOT)) {
+            case "LIVREUR", "CHAUFFEUR", "DRIVER" -> "DRIVER";
+            case "MARKETEUR", "MARKETER" -> "MARKETER";
+            case "TRANSPORTEUR", "TRANSPORTER" -> "TRANSPORTER";
+            default -> role.trim();
+        };
+    }
+
     @Transactional
     public PersonResponse createPersonWithAuth(CreatePersonWithAuthRequest request, String createdBy) {
         PersonResponse personResponse = createPerson(request, createdBy);
 
-        // Assign role if specified or default to DRIVER/LIVREUR
-        String roleToAssign = request.getRoleName() != null && !request.getRoleName().isBlank()
+        // Assign role if specified or default to DRIVER.
+        //
+        // The value written to user_role_assignments.roleId MUST be the roles.id
+        // UUID, never the code: PermissionService.resolvePermissions looks the
+        // assignment up with rolePermissionRepo.findPermissionCodesByRoleId(),
+        // which joins on the id. Writing "DRIVER" there produced a user that
+        // authenticated successfully but whose JWT carried zero permissions,
+        // because nothing resolves a role from its code.
+        String requestedRole = request.getRoleName() != null && !request.getRoleName().isBlank()
                 ? request.getRoleName()
-                : (request.getJobCode() != null ? request.getJobCode() : "LIVREUR");
+                : (request.getJobCode() != null ? request.getJobCode() : "DRIVER");
+        final String roleCode = normalizeRoleCode(requestedRole);
 
         try {
+            String roleId = roleRepository.findByCode(roleCode)
+                    .map(Role::getId)
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown role code: " + roleCode));
+
             UserRoleAssignment assignment = new UserRoleAssignment();
             assignment.setPersonId(personResponse.getPersonId());
-            assignment.setRoleId(roleToAssign);
+            assignment.setRoleId(roleId);
             assignment.setOrganizationId(request.getOrganizationId() != null ? request.getOrganizationId() : request.getOrgId());
             assignment.setSiteId(request.getPrimarySiteId());
             assignment.setPrimary(true);
@@ -140,9 +175,13 @@ public class PersonService {
             assignment.setCreatedBy(createdBy != null ? createdBy : "SYSTEM");
             assignment.setCreatedAt(Instant.now());
             roleAssignmentRepository.save(assignment);
-            log.info("Assigned role {} to person {}", roleToAssign, personResponse.getPersonId());
+            log.info("Assigned role {} ({}) to person {}", roleCode, roleId, personResponse.getPersonId());
         } catch (Exception e) {
-            log.warn("Could not create role assignment automatically: {}", e.getMessage());
+            // Loud, because a person without a resolvable role is a user who can
+            // log in and then do absolutely nothing — a silent warning here is
+            // exactly how that ships unnoticed.
+            log.error("Could not assign role {} to person {}: {}",
+                    roleCode, personResponse.getPersonId(), e.getMessage(), e);
         }
 
         // Provision authentication credentials in auth-service

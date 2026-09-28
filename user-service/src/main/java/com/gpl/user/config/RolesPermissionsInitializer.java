@@ -326,10 +326,11 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
      * Initialise les permissions accordées aux rôles.
      */
     private void initRolePermissions() {
-        if (rolePermissionRepository.count() > 0) {
-            log.info("Role permissions already exist, skipping");
-            return;
-        }
+        // Note: NO early-return guard here. `grantPermissionsToRole` is itself
+        // idempotent (it skips already-granted permissions). This lets us
+        // add new role-permission pairs across deployments without having to
+        // wipe the role_permissions table.
+        log.info("Reconciling role-permission grants (idempotent)...");
 
         // SUPERADMIN
         grantAllPermissionsToRole("SUPERADMIN");
@@ -408,6 +409,37 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
             "TOUR_VIEW", "PICKUP_VIEW",
             "REPORT_GENERATE", "DASHBOARD_VIEW_ANALYTICS", "MONITORING_VIEW",
             "NOTIFICATION_VIEW_LOG", "AUDIT_VIEW_MODIFICATIONS"
+        );
+
+        // DRIVER / LIVREUR — mobile/PDA driver. Carries every permission needed
+        // to execute a full tournee from the field (view assigned tournees,
+        // start/close the tournee, scan RFID tags at each checkpoint,
+        // validate/skip checkpoints). Cross-org capabilities (TOUR_VIEW_ALL,
+        // TOUR_CREATE, etc.) remain ADMIN-only by design.
+        //
+        // Both DRIVER (legacy code) and LIVREUR (newly created users) must
+        // carry these grants because PersonService may use either code when
+        // a /users/with-auth request specifies `roleName: LIVREUR` (which maps
+        // to a LIVREUR role row in user_role_assignments).
+        grantPermissionsToRole("DRIVER",
+            "TOUR_VIEW", "TOUR_VIEW_OWN_ORG",
+            "TOUR_START", "TOUR_CLOSE",
+            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
+            "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
+            "PERSON_VIEW",
+            "SITE_VIEW", "SITE_VIEW_OWN",
+            "VEHICLE_VIEW", "VEHICLE_VIEW_OWN_ORG",
+            "DASHBOARD_VIEW_ANALYTICS", "MONITORING_VIEW", "REPORT_GENERATE"
+        );
+        grantPermissionsToRole("LIVREUR",
+            "TOUR_VIEW", "TOUR_VIEW_OWN_ORG",
+            "TOUR_START", "TOUR_CLOSE",
+            "CHECKPOINT_VIEW", "CHECKPOINT_CREATE", "CHECKPOINT_UPDATE", "CHECKPOINT_VALIDATE", "CHECKPOINT_SKIP",
+            "SCAN_VIEW", "SCAN_CREATE", "SCAN_VIEW_OWN_ORG", "SCAN_EXPORT", "SCAN_RESOLVE_CONFLICT",
+            "PERSON_VIEW",
+            "SITE_VIEW", "SITE_VIEW_OWN",
+            "VEHICLE_VIEW", "VEHICLE_VIEW_OWN_ORG",
+            "DASHBOARD_VIEW_ANALYTICS", "MONITORING_VIEW", "REPORT_GENERATE"
         );
 
         // MARKETER
@@ -594,11 +626,22 @@ public class RolesPermissionsInitializer implements CommandLineRunner {
     }
 
     /**
-     * Accorde des permissions spécifiques à un rôle.
+     * Accorde des permissions spécifiques à un rôle. Crée le rôle à la volée
+     * s'il n'existe pas encore (cas des rôles ajoutés dans une nouvelle
+     * version mais pas encore seedés en base).
      */
     private void grantPermissionsToRole(String roleCode, String... permissionCodes) {
         Role role = roleRepository.findByCode(roleCode)
-            .orElseThrow(() -> new RuntimeException("Role not found: " + roleCode));
+            .orElseGet(() -> {
+                log.warn("Role {} absent de la base, création à la volée par l'initializer", roleCode);
+                Role created = new Role();
+                created.setCode(roleCode);
+                created.setName(roleCode);
+                created.setDescription("Role auto-seeded at startup");
+                created.setSystemRole(true);
+                created.setSortOrder(50);
+                return roleRepository.save(created);
+            });
         for (String code : permissionCodes) {
             Permission perm = permissionRepository.findByCode(code)
                 .orElseThrow(() -> new RuntimeException("Permission not found: " + code));
