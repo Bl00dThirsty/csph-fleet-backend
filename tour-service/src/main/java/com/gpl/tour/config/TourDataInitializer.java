@@ -149,10 +149,12 @@ public class TourDataInitializer implements CommandLineRunner {
         tour.setExecutionMode("EXTERNAL");
         tour.setTransporterOrganizationId("TRP-ABC");
         /*
-         * Véhicule et chauffeur : à affecter par le transporteur lors de l'accusé de réception.
-         * Identifiants placeholders — seront mis à jour quand l'entité Vehicle sera disponible.
+         * Véhicule seedé par FleetDeviceDataInitializer (même identifiant
+         * déterministe des deux côtés : pas de FK inter-bases, le lien se
+         * fait par l'id string). Le chauffeur reste à affecter par le
+         * transporteur lors de l'accusé de réception.
          */
-        tour.setVehicleId(null);
+        tour.setVehicleId("VEH-TRP-ABC-001");
         tour.setDriverId(null);
         tour.setDriverPersonId(null);
         tour.setType("VRAC");
@@ -234,7 +236,7 @@ public class TourDataInitializer implements CommandLineRunner {
         tour.setMarketerOrganizationId("MKT-GPL");
         tour.setExecutionMode("EXTERNAL");
         tour.setTransporterOrganizationId("TRP-ABC");
-        tour.setVehicleId(null);
+        tour.setVehicleId("VEH-TRP-ABC-002");
         tour.setDriverId(null);
         tour.setDriverPersonId(null);
         tour.setType("BOUTEILLES50KG");
